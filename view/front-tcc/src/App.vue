@@ -3,7 +3,7 @@
     <v-main>
       <router-view />
     </v-main>
-
+    <div>
     <v-btn
       :icon="theme.global.current.value.dark ? 'mdi-weather-sunny' : 'mdi-weather-night'"
       @click="toggleTheme"
@@ -11,6 +11,7 @@
       class="btn-tema"
       color="primary"
     ></v-btn>
+    </div>
   </v-app>
 </template>
 
@@ -31,4 +32,5 @@
   right: 20px;   
   z-index: 999; 
 }
+
 </style>
