@@ -10,6 +10,11 @@ import '../styles/layers.css'
 import 'vuetify/styles'
 
 export default createVuetify({
+  defaults: {
+    VChip: {
+      rounded: '0',
+    },
+  },
   theme: {
     defaultTheme: 'system',
     utilities: false,

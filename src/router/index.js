@@ -6,6 +6,7 @@ import TelaInput from "@/pages/login/TelaInput.vue";
 import Findprofessor from "@/pages/gestaoProfessores/Findprofessor.vue";
 import Turmas from "@/pages/turmas/turmas.vue";
 import addTurmas from "@/pages/turmas/addTurmas.vue";
+import GerAreasComp from "@/pages/Areas_Competencias/GerAreasComp.vue";
 
 
 const routes = [
@@ -41,6 +42,12 @@ const routes = [
      name: "addturmas",
      component: addTurmas,
   },
+  {
+    path: "/GerAreasComp",
+    name: "GerAreasComp",
+    component: GerAreasComp,
+ },
+
 
 ];
 

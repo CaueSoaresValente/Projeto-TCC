@@ -191,7 +191,7 @@ const filteredTurmas = computed(() => {
                 <v-sheet class="ms-1" max-width="600">
                     <v-slide-group show-arrows>
                         <v-slide-group-item v-for="area in turma.areas" :key="area">
-                            <v-btn class="m-2 p-2 chip">
+                            <v-btn class="m-2 p-2 chip" rounded="0">
                                 {{ area }}
                             </v-btn>
                         </v-slide-group-item>

@@ -78,7 +78,17 @@ const selectedPeriodo = ref({
         </div>
     </Menu>
 
-    <div class="mx-2 border-t-4 border-red-600 mt-8 px-8 rounded-lg shadow-lg py-8 mx-50!">
+    <div class="flex justify-between mx-50! mt-8">
+        <div>
+            <p class="text-4xl font-bold">Adicionar Turma</p>
+            <p>Preencha as informações necessárias para adicionar uma turma</p>
+        </div>
+        <div class="hidden lg:flex relative top-8.5">
+            <img src="@/assets/prototipo_opp.png" alt="Desenho de um professor" width="200px">
+        </div>
+    </div>
+
+    <div class="mx-2 border-t-4 border-red-600 mt-3 px-8 rounded-lg shadow-lg py-8 mx-50!">
 
         <div class="mx-5">
             <div class="mb-6">
@@ -146,7 +156,7 @@ const selectedPeriodo = ref({
 
 
             <div class="mb-4 mt-5">
-                <div class="hidden md:block md:row-span-1 lg:row-span-2 min-w-[250px]">
+                <div class="hidden lg:block md:row-span-1 lg:row-span-2 min-w-[250px]">
                     <v-card class="mt-4 border-t-6 border-red-600 p-5 shadow-lg h-fit">
                         <div class="flex items-center gap-3 mb-2">
                             <v-icon size="36" icon="mdi-book-open-outline" color="grey-darken-3"></v-icon>
