@@ -5,13 +5,9 @@ export class CadastroService {
   private repo = new CadastroRepository();
 
   async create(data: Partial<Cadastro>) {
-    // Adicionar lógica de negócio aqui (ex: validar e hashear senha se presente no repo)
-    return await this.repo.create(data);
+  if (data.senha) {
+  data.senha = await this.repo.hashPassword(data.senha);
   }
-
-  async findById(id: number) {
-    return await this.repo.findById(id);
+  return await this.repo.create(data);
   }
-
-  // Adicionar outros métodos conforme necessário
 }
