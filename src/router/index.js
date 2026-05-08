@@ -7,6 +7,7 @@ import Findprofessor from "@/pages/gestaoProfessores/Findprofessor.vue";
 import Turmas from "@/pages/turmas/turmas.vue";
 import addTurmas from "@/pages/turmas/addTurmas.vue";
 import GerAreasComp from "@/pages/Areas_Competencias/GerAreasComp.vue";
+import PerfilProfessor from "@/pages/professor/PerfilProfessor.vue";
 
 
 const routes = [
@@ -46,6 +47,11 @@ const routes = [
     path: "/GerAreasComp",
     name: "GerAreasComp",
     component: GerAreasComp,
+ },
+ {
+  path:"/perfilprofessor",
+  name:"perfilprofessor",
+  component: PerfilProfessor,
  },
 
 

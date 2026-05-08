@@ -155,18 +155,6 @@ const unidadesCurriculares = [
   { nome: "Hardware e Manutenção", carga: "40h" },
 ];
 
-const periodosAulas = [
-  "M1",
-  "M2",
-  "T1",
-  "T2",
-  "N1",
-  "N2",
-  "Integral",
-  "Manhã",
-  "Tarde",
-  "Noite",
-];
 
 // Controla se o modal está aberto ou fechado
 const modalAberto = ref(false);

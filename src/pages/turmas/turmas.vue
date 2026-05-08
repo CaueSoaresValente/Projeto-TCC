@@ -25,20 +25,131 @@ const items = ref([
 ]);
 
 
+const diasSemana = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+// Dialog para visão panorâmica do cronograma
+const dialogGrade = ref(false);
+const turmaSelecionada = ref(null);
+
+function abrirGrade(turma) {
+    turmaSelecionada.value = turma;
+    dialogGrade.value = true;
+}
+
 const turmas = [
-    { label: "CPTMTDS04", value: "cptmtds04", modalidade: "tec", siglas: "M01", areas: ["Tecnologia", "Software"] },
-    { label: "CPTMTDS03", value: "cptmtds03", modalidade: "fic", siglas: "M02", areas: ["Manutenção", "Hardware"] },
-    { label: "CPTMTDS02", value: "cptmtds02", modalidade: "cai", siglas: "T01", areas: ["Elétrica", "Automação"] },
-    { label: "CPTMTDS01", value: "cptmtds01", modalidade: "tec", siglas: "T02", areas: ["Tecnologia", "Cloud"] },
-    { label: "CPTMTDS04", value: "cptmtds04", modalidade: "tec", siglas: "N01", areas: ["Software", "Web"] },
-    { label: "CPTMTDS03", value: "cptmtds03", modalidade: "fic", siglas: "N02", areas: ["Redes", "Infra"] },
-    { label: "CPTMTDS02", value: "cptmtds02", modalidade: "cai", siglas: "INT", areas: ["Elétrica"] },
-    { label: "CPTMTDS01", value: "cptmtds01", modalidade: "tec", siglas: "INT", areas: ["Tecnologia"] },
-    { label: "CPTMTDS04", value: "cptmtds04", modalidade: "tec", siglas: "INT", areas: ["Mobile"] },
-    { label: "CPTMTDS03", value: "cptmtds03", modalidade: "fic", siglas: "INT", areas: ["Gestão"] },
-    { label: "CPTMTDS02", value: "cptmtds02", modalidade: "cai", siglas: "INT", areas: ["Mecânica"] },
-    { label: "CPTMTDS01", value: "cptmtds01", modalidade: "tec", siglas: "INT", areas: ["Design"] },
+    {
+        label: "CPTMTDS04", value: "cptmtds04", modalidade: "tec", siglas: "M01",
+        areas: ["Tecnologia", "Software"],
+        grade: [
+            { periodo: "M01", aulas: { Seg: { disciplina: "Power BI", professor: "Douglas dos Reis" }, Qua: { disciplina: "IOT", professor: "Lincoln Loud" }, Sex: { disciplina: "Power BI", professor: "Douglas dos Reis" } } },
+            { periodo: "M02", aulas: { Seg: { disciplina: "Power BI", professor: "Douglas dos Reis" }, Ter: { disciplina: "IOT", professor: "Lincoln Loud" }, Qua: { disciplina: "IOT", professor: "Lincoln Loud" } } },
+        ]
+    },
+    {
+        label: "CPTMTDS03", value: "cptmtds03", modalidade: "fic", siglas: "M02",
+        areas: ["Manutenção", "Hardware"],
+        grade: [
+            { periodo: "M01", aulas: { Seg: { disciplina: "Manutenção", professor: "Carlos Silva" }, Qui: { disciplina: "Manutenção", professor: "Carlos Silva" } } },
+            { periodo: "M02", aulas: { Ter: { disciplina: "Hardware", professor: "Ana Paula" }, Sex: { disciplina: "Hardware", professor: "Ana Paula" } } },
+        ]
+    },
+    {
+        label: "CPTMTDS02", value: "cptmtds02", modalidade: "cai", siglas: "T01",
+        areas: ["Elétrica", "Automação"],
+        grade: [
+            { periodo: "T01", aulas: { Ter: { disciplina: "Front-End", professor: "Lincoln Loud" }, Qui: { disciplina: "Power BI", professor: "Douglas dos Reis" } } },
+            { periodo: "T02", aulas: { Seg: { disciplina: "Elétrica", professor: "João Marcos" }, Qua: { disciplina: "Automação", professor: "Pedro H." } } },
+        ]
+    },
+    {
+        label: "CPTMTDS01", value: "cptmtds01", modalidade: "tec", siglas: "T02",
+        areas: ["Tecnologia", "Cloud"],
+        grade: [
+            { periodo: "T01", aulas: { Seg: { disciplina: "Cloud", professor: "Marcos Vini" }, Qua: { disciplina: "DevOps", professor: "Marcos Vini" } } },
+            { periodo: "T02", aulas: { Ter: { disciplina: "Front-End", professor: "Lincoln Loud" }, Qui: { disciplina: "Power BI", professor: "Douglas dos Reis" }, Sex: { disciplina: "IOT", professor: "Lincoln Loud" } } },
+        ]
+    },
+    {
+        label: "CPTMTDS04", value: "cptmtds04b", modalidade: "tec", siglas: "N01",
+        areas: ["Software", "Web"],
+        grade: [
+            { periodo: "N01", aulas: { Seg: { disciplina: "IOT", professor: "Lincoln Loud" }, Qua: { disciplina: "Front-End", professor: "Lincoln Loud" } } },
+            { periodo: "N02", aulas: { Ter: { disciplina: "Back-End", professor: "Douglas dos Reis" }, Qui: { disciplina: "Banco de Dados", professor: "Ana Paula" } } },
+        ]
+    },
+    {
+        label: "CPTMTDS03", value: "cptmtds03b", modalidade: "fic", siglas: "N02",
+        areas: ["Redes", "Infra"],
+        grade: [
+            { periodo: "N01", aulas: { Seg: { disciplina: "IOT", professor: "Lincoln Loud" }, Qui: { disciplina: "Redes", professor: "Ricardo M." } } },
+            { periodo: "N02", aulas: { Ter: { disciplina: "Infra", professor: "Pedro H." }, Sex: { disciplina: "Front-End", professor: "Lincoln Loud" } } },
+        ]
+    },
+    {
+        label: "CPTMTDS02", value: "cptmtds02c", modalidade: "cai", siglas: "INT",
+        areas: ["Elétrica"],
+        grade: [
+            { periodo: "Manhã", aulas: { Seg: { disciplina: "Elétrica I", professor: "João Marcos" }, Qua: { disciplina: "Elétrica II", professor: "João Marcos" }, Sex: { disciplina: "Prática", professor: "Pedro H." } } },
+            { periodo: "Tarde", aulas: { Ter: { disciplina: "Circuitos", professor: "Ana Paula" }, Qui: { disciplina: "Automação", professor: "Pedro H." } } },
+        ]
+    },
+    {
+        label: "CPTMTDS01", value: "cptmtds01c", modalidade: "tec", siglas: "INT",
+        areas: ["Tecnologia"],
+        grade: [
+            { periodo: "Manhã", aulas: { Ter: { disciplina: "Programação", professor: "Douglas dos Reis" }, Qui: { disciplina: "Lógica", professor: "Carlos Silva" } } },
+            { periodo: "Tarde", aulas: { Seg: { disciplina: "Web", professor: "Lincoln Loud" }, Qua: { disciplina: "Mobile", professor: "Marcos Vini" } } },
+            { periodo: "Integral", aulas: { Sex: { disciplina: "Projeto", professor: "Carlos Silva" } } },
+        ]
+    },
+    {
+        label: "CPTMTDS04", value: "cptmtds04a", modalidade: "tec", siglas: "INT",
+        areas: ["Mobile"],
+        grade: [
+            { periodo: "Manhã", aulas: { Seg: { disciplina: "React", professor: "Lincoln Loud" }, Qua: { disciplina: "Flutter", professor: "Marcos Vini" } } },
+            { periodo: "Tarde", aulas: { Ter: { disciplina: "UI/UX", professor: "Ana Paula" }, Sex: { disciplina: "Testes", professor: "Carlos Silva" } } },
+        ]
+    },
+    {
+        label: "CPTMTDS03", value: "cptmtds03a", modalidade: "fic", siglas: "INT",
+        areas: ["Gestão"],
+        grade: [
+            { periodo: "Manhã", aulas: { Ter: { disciplina: "Gestão", professor: "Ricardo M." }, Qui: { disciplina: "Processos", professor: "Ricardo M." } } },
+            { periodo: "Tarde", aulas: { Seg: { disciplina: "Liderança", professor: "Carlos Silva" } } },
+        ]
+    },
+    {
+        label: "CPTMTDS02", value: "cptmtds02a", modalidade: "cai", siglas: "INT",
+        areas: ["Mecânica"],
+        grade: [
+            { periodo: "Manhã", aulas: { Seg: { disciplina: "Mecânica I", professor: "João Marcos" }, Qua: { disciplina: "Mecânica II", professor: "Pedro H." } } },
+            { periodo: "Tarde", aulas: { Ter: { disciplina: "Prática", professor: "João Marcos" }, Qui: { disciplina: "Solda", professor: "Pedro H." } } },
+            { periodo: "Noite", aulas: { Sáb: { disciplina: "Reforço", professor: "João Marcos" } } },
+        ]
+    },
+    {
+        label: "CPTMTDS01", value: "cptmtds01a", modalidade: "tec", siglas: "INT",
+        areas: ["Design"],
+        grade: [
+            { periodo: "Manhã", aulas: { Seg: { disciplina: "Design I", professor: "Ana Paula" }, Qua: { disciplina: "Figma", professor: "Ana Paula" }, Sex: { disciplina: "Photoshop", professor: "Marcos Vini" } } },
+            { periodo: "Tarde", aulas: { Ter: { disciplina: "Ilustração", professor: "Ana Paula" }, Qui: { disciplina: "Branding", professor: "Ricardo M." } } },
+            { periodo: "Integral", aulas: { Sáb: { disciplina: "Portfólio", professor: "Ana Paula" } } },
+        ]
+    },
 ];
+
+const periodoDescricoes = {
+    'M01': 'Antes do intervalo',
+    'M02': 'Depois do intervalo',
+    'T01': 'Antes do intervalo',
+    'T02': 'Depois do intervalo',
+    'N01': 'Antes do intervalo',
+    'N02': 'Depois do intervalo',
+    'Manhã': 'Período da Manhã',
+    'Tarde': 'Período da Tarde',
+    'Noite': 'Período da Noite',
+    'Integral': 'Período Integral'
+};
 
 const filteredTurmas = computed(() => {
     return turmas.filter(turma => {
@@ -188,54 +299,20 @@ const filteredTurmas = computed(() => {
                             :class="{ 'text-green-900': turma.modalidade === 'cai', 'text-blue-900': turma.modalidade === 'fic', 'text-orange-900': turma.modalidade === 'tec' }"></v-btn>
                     </div>
                 </v-card-title>
-                <v-sheet class="ms-1" max-width="600">
-                    <v-slide-group show-arrows>
-                        <v-slide-group-item v-for="area in turma.areas" :key="area">
-                            <v-btn class="m-2 p-2 chip" rounded="0">
-                                {{ area }}
-                            </v-btn>
-                        </v-slide-group-item>
-                    </v-slide-group>
-                </v-sheet>
-
-                <v-chip-group mandatory class="ms-2 mt-1">
-                    <v-chip value="Seg" variant="tonal" class="chip">Seg</v-chip>
-                    <v-chip value="Ter" variant="tonal" class="chip">Ter</v-chip>
-                    <v-chip value="Qua" variant="tonal" class="chip">Qua</v-chip>
-                    <v-chip value="Qui" variant="tonal" class="chip">Qui</v-chip>
-                    <v-chip value="Sex" variant="tonal" class="chip">Sex</v-chip>
-                    <v-chip value="Sáb" variant="tonal" class="chip">Sáb</v-chip>
-                </v-chip-group>
-
-                <v-divider :thickness="4" class="hidden my-1 mx-3  md:flex "></v-divider>
-
-                <v-chip-group class="hidden md:flex ms-2 mt-1">
-                    <v-chip variant="tonal" class="chip text-red-600!">
-                        {{ turma.siglas }}
-                    </v-chip>
-                </v-chip-group>
-
-                <v-chip-group class="ms-2 mt-1 md:hidden">
-                    <v-chip variant="tonal" size="small" class="text-red-600!">
-                        {{ turma.siglas }} <v-icon icon="mdi-information-outline" end size="x-small"></v-icon>
-                        <v-tooltip activator="parent" location="top">
-                            <div class="text-xs p-1">
-                                <p class="font-bold border-b mb-1">📖 Legenda</p>
-                                <p class="font-bold mt-1 text-red-500">Manhã</p>
-                                <p>• M01 &rarr; Antes do intervalo</p>
-                                <p>• M02 &rarr; Depois do intervalo</p>
-                                <p class="font-bold mt-1 text-red-500">Tarde</p>
-                                <p>• T01 &rarr; Antes do intervalo</p>
-                                <p>• T02 &rarr; Depois do intervalo</p>
-                                <p class="font-bold mt-1 text-red-500">Noite</p>
-                                <p>• N01 &rarr; Antes do intervalo</p>
-                                <p>• N02 &rarr; Depois do intervalo</p>
-                                <p class="font-bold mt-1 text-red-500">Integral</p>
-                                <p>• INT &rarr; Integral</p>
-                            </div>
-                        </v-tooltip>
-                    </v-chip>
-                </v-chip-group>
+                <div class="md:hidden">
+                    <v-chip-group class="ms-2 mt-1">
+                        <v-chip v-for="slot in turma.grade" :key="slot.periodo"
+                            variant="tonal" size="small" class="text-red-600!">
+                            {{ slot.periodo }} <v-icon icon="mdi-information-outline" end size="x-small"></v-icon>
+                            <v-tooltip activator="parent" location="top">
+                                <div class="text-xs p-1">
+                                    <p class="font-bold border-b mb-1">📖 Legenda</p>
+                                    <p>{{ periodoDescricoes[slot.periodo] || 'Período de aula' }}</p>
+                                </div>
+                            </v-tooltip>
+                        </v-chip>
+                    </v-chip-group>
+                </div>
                 <v-divider :thickness="4" class="my-1 mx-3"></v-divider>
                 <div class="hidden md:flex justify-around gap-2 p-3">
 
@@ -273,9 +350,85 @@ const filteredTurmas = computed(() => {
                     <p class="flex items-center justify-center font-bold text-sm">{{ user.name }}</p>
                 </div>
                 <v-divider :thickness="4" class="my-1 mx-3"></v-divider>
-                <p class="ms-3 text-sm my-2 font-bold">Descrição<span class="text-gray-500 font-normal">
-                        (Opcional)</span></p>
+                <p class="ms-3 text-sm my-2 font-bold">Descrição <span class="text-gray-500 font-normal">(Opcional)</span></p>
                 <v-textarea label="..." rows="4" hide-details class="mx-3 mt-2 text-sm mb-3"></v-textarea>
+                <v-divider :thickness="4" class="my-1 mx-3"></v-divider>
+
+                <!-- Grade de Horário Acoplada no Card -->
+                <div v-if="turma.grade" class="mx-3 my-3 cursor-pointer" @click="abrirGrade(turma)">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <v-icon size="16" icon="mdi-calendar-clock"
+                                :class="{ 'text-green-600': turma.modalidade === 'cai', 'text-blue-600': turma.modalidade === 'fic', 'text-orange-600': turma.modalidade === 'tec' }"></v-icon>
+                            <p class="text-xs font-bold text-gray-600">Cronograma Semanal</p>
+                        </div>
+                        <v-icon size="14" icon="mdi-arrow-expand" color="grey"></v-icon>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-lg border"
+                         :class="{
+                             'border-green-200': turma.modalidade === 'cai',
+                             'border-blue-200': turma.modalidade === 'fic',
+                             'border-orange-200': turma.modalidade === 'tec'
+                         }">
+                        <table class="w-full border-collapse">
+                            <thead>
+                                <tr
+                                    :class="{
+                                        'bg-green-50': turma.modalidade === 'cai',
+                                        'bg-blue-50': turma.modalidade === 'fic',
+                                        'bg-orange-50': turma.modalidade === 'tec'
+                                    }">
+                                    <th class="p-1.5 border-r border-b w-12 text-center"
+                                        :class="{
+                                            'border-green-200': turma.modalidade === 'cai',
+                                            'border-blue-200': turma.modalidade === 'fic',
+                                            'border-orange-200': turma.modalidade === 'tec'
+                                        }"></th>
+                                    <th v-for="dia in diasSemana" :key="dia"
+                                        class="p-1.5 border-b text-center text-[10px] font-bold uppercase"
+                                        :class="{
+                                            'border-green-200 text-green-700': turma.modalidade === 'cai',
+                                            'border-blue-200 text-blue-700': turma.modalidade === 'fic',
+                                            'border-orange-200 text-orange-700': turma.modalidade === 'tec'
+                                        }">
+                                        {{ dia }}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(slot, idx) in turma.grade" :key="slot.periodo"
+                                    :class="{ 'border-b': idx < turma.grade.length - 1,
+                                        'border-green-100': turma.modalidade === 'cai',
+                                        'border-blue-100': turma.modalidade === 'fic',
+                                        'border-orange-100': turma.modalidade === 'tec'
+                                    }">
+                                    <td class="p-1.5 border-r text-[8px] font-bold text-gray-400 text-center leading-tight"
+                                        :class="{
+                                            'border-green-200 bg-green-50/50': turma.modalidade === 'cai',
+                                            'border-blue-200 bg-blue-50/50': turma.modalidade === 'fic',
+                                            'border-orange-200 bg-orange-50/50': turma.modalidade === 'tec'
+                                        }">
+                                        {{ slot.periodo }}
+                                    </td>
+                                    <td v-for="dia in diasSemana" :key="dia" class="p-1">
+                                        <div v-if="slot.aulas?.[dia]"
+                                             class="p-1.5 rounded-md text-center"
+                                             :class="{
+                                                 'bg-green-100 text-green-800': turma.modalidade === 'cai',
+                                                 'bg-blue-100 text-blue-800': turma.modalidade === 'fic',
+                                                 'bg-orange-100 text-orange-800': turma.modalidade === 'tec'
+                                             }">
+                                            <p class="text-[9px] font-bold leading-tight">{{ slot.aulas[dia].disciplina }}</p>
+                                            <p class="text-[7px] opacity-60 mt-0.5">{{ slot.aulas[dia].professor }}</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <v-divider :thickness="4" class="my-1 mx-3"></v-divider>
                 <div class="flex items-center justify-between m-3 p-2 rounded-lg"
                     :class="{ 'bg-green-100': turma.modalidade === 'cai', 'bg-blue-100': turma.modalidade === 'fic', 'bg-orange-100': turma.modalidade === 'tec' }">
@@ -295,8 +448,107 @@ const filteredTurmas = computed(() => {
         </div>
     </div>
 
+    <!-- Dialog: Visão Panorâmica do Cronograma -->
+    <v-dialog v-model="dialogGrade" max-width="900" scrollable>
+        <v-card v-if="turmaSelecionada" class="rounded-xl">
+            <v-card-title class="flex items-center justify-between pa-5"
+                :class="{
+                    'bg-green-50': turmaSelecionada.modalidade === 'cai',
+                    'bg-blue-50': turmaSelecionada.modalidade === 'fic',
+                    'bg-orange-50': turmaSelecionada.modalidade === 'tec'
+                }">
+                <div class="flex items-center gap-3">
+                    <v-icon size="28" icon="mdi-calendar-clock"
+                        :class="{
+                            'text-green-600': turmaSelecionada.modalidade === 'cai',
+                            'text-blue-600': turmaSelecionada.modalidade === 'fic',
+                            'text-orange-600': turmaSelecionada.modalidade === 'tec'
+                        }"></v-icon>
+                    <div>
+                        <h2 class="text-xl font-bold">{{ turmaSelecionada.label }}</h2>
+                        <div class="flex gap-2 items-center">
+                            <p class="text-xs text-gray-500">Cronograma Semanal •</p>
+                            <v-chip v-for="slot in turmaSelecionada.grade" :key="slot.periodo"
+                                variant="tonal" size="x-small" class="text-red-600! font-bold">
+                                {{ slot.periodo }}
+                            </v-chip>
+                        </div>
+                    </div>
+                </div>
+                <v-btn icon="mdi-close" variant="text" size="small" @click="dialogGrade = false"></v-btn>
+            </v-card-title>
 
+            <v-divider></v-divider>
 
+            <v-card-text class="pa-6">
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr
+                            :class="{
+                                'bg-green-50': turmaSelecionada.modalidade === 'cai',
+                                'bg-blue-50': turmaSelecionada.modalidade === 'fic',
+                                'bg-orange-50': turmaSelecionada.modalidade === 'tec'
+                            }">
+                            <th class="p-3 border-b-2 border-r w-20 text-center text-sm font-bold text-gray-500"
+                                :class="{
+                                    'border-green-200': turmaSelecionada.modalidade === 'cai',
+                                    'border-blue-200': turmaSelecionada.modalidade === 'fic',
+                                    'border-orange-200': turmaSelecionada.modalidade === 'tec'
+                                }">Horário</th>
+                            <th v-for="dia in diasSemana" :key="dia"
+                                class="p-3 border-b-2 text-center text-sm font-bold uppercase"
+                                :class="{
+                                    'border-green-200 text-green-700': turmaSelecionada.modalidade === 'cai',
+                                    'border-blue-200 text-blue-700': turmaSelecionada.modalidade === 'fic',
+                                    'border-orange-200 text-orange-700': turmaSelecionada.modalidade === 'tec'
+                                }">
+                                {{ dia }}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(slot, idx) in turmaSelecionada.grade" :key="slot.periodo"
+                            :class="{ 'border-b': idx < turmaSelecionada.grade.length - 1,
+                                'border-green-100': turmaSelecionada.modalidade === 'cai',
+                                'border-blue-100': turmaSelecionada.modalidade === 'fic',
+                                'border-orange-100': turmaSelecionada.modalidade === 'tec'
+                            }">
+                            <td class="p-3 border-r text-xs font-bold text-gray-400 text-center"
+                                :class="{
+                                    'border-green-200 bg-green-50/50': turmaSelecionada.modalidade === 'cai',
+                                    'border-blue-200 bg-blue-50/50': turmaSelecionada.modalidade === 'fic',
+                                    'border-orange-200 bg-orange-50/50': turmaSelecionada.modalidade === 'tec'
+                                }">
+                                {{ slot.periodo }}
+                            </td>
+                            <td v-for="dia in diasSemana" :key="dia" class="p-2">
+                                <div v-if="slot.aulas?.[dia]"
+                                     class="p-3 rounded-lg text-center"
+                                     :class="{
+                                         'bg-green-100 text-green-900': turmaSelecionada.modalidade === 'cai',
+                                         'bg-blue-100 text-blue-900': turmaSelecionada.modalidade === 'fic',
+                                         'bg-orange-100 text-orange-900': turmaSelecionada.modalidade === 'tec'
+                                     }">
+                                    <p class="text-sm font-bold leading-tight">{{ slot.aulas[dia].disciplina }}</p>
+                                    <p class="text-xs opacity-60 mt-1">{{ slot.aulas[dia].professor }}</p>
+                                </div>
+                                <div v-else class="h-16 rounded-lg border-2 border-dashed border-gray-100"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </v-card-text>
+
+            <v-divider></v-divider>
+
+            <v-card-actions class="pa-4 flex justify-between">
+                <div class="flex items-center gap-4">
+
+                </div>
+                <v-btn variant="text" @click="dialogGrade = false">Fechar</v-btn>
+            </v-card-actions>
+        </v-card>
+    </v-dialog>
 
 </template>
 
