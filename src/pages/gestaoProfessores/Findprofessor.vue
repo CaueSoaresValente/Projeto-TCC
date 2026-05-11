@@ -4,10 +4,6 @@ import Menu from "@/components/Menu.vue";
 
 const turma = ref("");
 const turno = ref("");
-const user = ref({
-  name: "User",
-  foto: "https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80",
-});
 
 const turmas = [
   { label: "CPTMTDS04", value: "cptmtds04" },
@@ -85,19 +81,24 @@ const slides = computed(() => {
 });
 
 const competencias = ref([
-  { id: 1, nome: "Programação em Python", proficiencia: "Avançado" },
-  { id: 2, nome: "Desenvolvimento Web", proficiencia: "Intermediário" },
-  { id: 3, nome: "Banco de Dados SQL", proficiencia: "Básico" },
-  { id: 4, nome: "Inteligência Artificial", proficiencia: "Intermediário" },
-  { id: 5, nome: "Redes de Computadores", proficiencia: "Avançado" },
+  { id: 1, nome: "Programação em Python", progresso: 90 },
+  { id: 2, nome: "Desenvolvimento Web", progresso: 65 },
+  { id: 3, nome: "Banco de Dados SQL", progresso: 40 },
+  { id: 4, nome: "Inteligência Artificial", progresso: 75 },
+  { id: 5, nome: "Redes de Computadores", progresso: 100 },
 ]);
 
+// Itens do menu dropdown do avatar (Padronizado)
 const items = ref([
-  { title: "Click Me" },
-  { title: "Click Me" },
-  { title: "Click Me" },
-  { title: "Click Me 2" },
+  { title: "Meu Perfil", icon: "mdi-account-outline" },
+  { title: "Configurações", icon: "mdi-cog-outline" },
+  { title: "Sair", icon: "mdi-logout" },
 ]);
+
+const user = ref({
+  name: "Caue Soares",
+  foto: "https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80",
+});
 
 const selectedProfessor = ref(null);
 const showProfileDialog = ref(false);
@@ -117,23 +118,34 @@ const handleDesignate = () => {
 
 <template>
   <Menu>
-    <div class="flex h-full items-center justify-end gap-4 mt-5">
-      <p class="hidden sm:block">Bem vindo, {{ user.name }}!</p>
-
-      <div class="d-flex justify-space-around">
-        <v-menu>
-          <template v-slot:activator="{ props }">
-            <v-icon icon="mdi-chevron-down" v-bind="props"></v-icon>
-          </template>
-          <v-list>
-            <v-list-item v-for="(item, index) in items" :key="index" :value="index">
-              <v-list-item-title>{{ item.title }}</v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-menu>
+    <div class="flex h-full items-center justify-end gap-6 mt-5">
+      <!-- Info do Usuário -->
+      <div class="text-right hidden sm:block">
+        <p class="text-sm font-black text-gray-800 dark:text-gray-200 leading-tight">Bem vindo,</p>
+        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">{{ user.name }}</p>
       </div>
 
-      <v-avatar :image="user.foto"></v-avatar>
+      <!-- Menu Dropdown Padronizado -->
+      <v-menu transition="slide-y-transition">
+        <template v-slot:activator="{ props }">
+          <div v-bind="props" class="flex items-center gap-2 cursor-pointer group">
+            <v-avatar :image="user.foto" size="42"
+              class="border-2 border-red-500 shadow-md group-hover:scale-105 transition-transform"></v-avatar>
+            <v-icon icon="mdi-chevron-down" size="small"
+              class="text-gray-400 group-hover:text-red-500 transition-colors"></v-icon>
+          </div>
+        </template>
+
+        <v-list class="mt-2 rounded-xl border-0 shadow-2xl dark:bg-gray-800 min-w-[180px] pa-2">
+          <v-list-item v-for="(item, index) in items" :key="index" :value="index"
+            class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <div class="flex items-center justify-center w-full gap-3">
+              <v-icon :icon="item.icon" size="18" class="text-gray-400"></v-icon>
+              <v-list-item-title class="font-bold text-sm dark:text-gray-200">{{ item.title }}</v-list-item-title>
+            </div>
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </div>
   </Menu>
 
@@ -181,7 +193,7 @@ const handleDesignate = () => {
       </v-card-text>
     </v-card>
 
-    
+
     <v-dialog v-model="showProfileDialog" max-width="500">
       <v-card v-if="selectedProfessor">
         <v-card-actions>
@@ -193,41 +205,41 @@ const handleDesignate = () => {
 
           <v-btn icon="mdi-close" @click="showProfileDialog = false"></v-btn>
         </v-card-actions>
-        <v-card-text class="flex items-center justify-center">
-          <div class="">
-            <div class="flex justify-center mb-8">
+        <v-card-text class="flex pt-0">
+          <div class="w-full">
+            <div class="flex justify-center w-full items-center mb-7">
               <div>
                 <v-avatar :image="selectedProfessor.foto" size="80"></v-avatar>
               </div>
               <div>
                 <v-card-title class="">{{ selectedProfessor.nome }}</v-card-title>
-                <v-card-subtitle>Área: {{ selectedProfessor.area }}</v-card-subtitle>
+                <v-card-subtitle>Área(s): {{ selectedProfessor.area }}</v-card-subtitle>
               </div>
             </div>
             <div>
               <div class="max-h-48 overflow-y-auto space-y-3 pr-2">
                 <div v-for="competencia in competencias" :key="competencia.id" class="mb-2">
                   <div class="flex gap-3 rounded w-full">
-                    <p
-                      class="p-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 flex-grow">
-                      {{ competencia.nome }}
-                    </p>
-                    <p class="p-4 rounded-lg flex-shrink-0 min-w-[120px] text-center" :class="{
-                      'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200':
-                        competencia.proficiencia === 'Básico',
-                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200':
-                        competencia.proficiencia ===
-                        'Intermediário',
-                      'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200':
-                        competencia.proficiencia ===
-                        'Avançado',
-                    }">
-                      {{ competencia.proficiencia }}
-                    </p>
+                    <div class="flex items-center gap-4 w-full">
+                      <!-- Lado Esquerdo: 50% da largura -->
+                      <div
+                        class="flex-1 flex items-center p-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium leading-tight min-h-[64px]">
+                        {{ competencia.nome }}
+                      </div>
+
+                      <!-- Lado Direito: 50% da largura -->
+                      <div class="flex-1 flex flex-col justify-center gap-1">
+                        <div class="flex justify-end items-center px-1">
+                          <span class="text-sm font-bold text-gray-500">{{ competencia.progresso }}%</span>
+                        </div>
+                        <v-progress-linear :model-value="competencia.progresso" color="#4CAF50" track-color="#E8F5E9"
+                          height="10" rounded></v-progress-linear>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-              <v-card-actions class="mt-6">
+              <v-card-actions class="mt-4">
                 <v-btn color="surface-variant" text="Selecionar e Designar a turma" variant="flat"
                   class="rounded-lg bg-red-600 text-white" @click="handleDesignate"></v-btn>
               </v-card-actions>
@@ -246,7 +258,7 @@ const handleDesignate = () => {
                 <v-avatar :image="selectedProfessor.foto" size="80"></v-avatar>
               </div>
               <div>
-                <v-card-title >{{ selectedProfessor.nome }}</v-card-title>
+                <v-card-title>{{ selectedProfessor.nome }}</v-card-title>
                 <v-card-subtitle>Área: {{ selectedProfessor.area }}</v-card-subtitle>
               </div>
             </div>
@@ -255,8 +267,9 @@ const handleDesignate = () => {
         <p class="text-center px-30">O professor foi designado para a turma com <span
             class="text-green-500">sucesso</span></p>
         <div class="flex justify-center mt-3 ">
-          <p class="border-2 px-6 py-1 border-gray-200 dark:border-gray-700 rounded-sm"><b>Turma:</b> {{ turmas[0]?.label
-            }}</p>
+          <p class="border-2 px-6 py-1 border-gray-200 dark:border-gray-700 rounded-sm"><b>Turma:</b> {{
+            turmas[0]?.label
+          }}</p>
         </div>
         <div class="flex justify-center my-8 gap-3 px-40">
           <v-btn text="Cancelar ação" variant="flat"
@@ -268,14 +281,15 @@ const handleDesignate = () => {
       </v-card>
     </v-dialog>
 
- <v-dialog v-model="cancelTeacherDialog" max-width="500" class="rounded-lg">
+    <v-dialog v-model="cancelTeacherDialog" max-width="500" class="rounded-lg">
       <v-card v-if="selectedProfessor">
         <v-card-text class="flex items-center justify-center p-0 mt-8">
         </v-card-text>
         <p class="text-center px-30">Deseja realmente retirar o professor desta turma?</p>
         <div class="flex justify-center mt-3 ">
-          <p class="border-2 px-6 py-1 border-gray-200 dark:border-gray-700 rounded-sm"><b>Turma:</b> {{ turmas[0]?.label
-            }}</p>
+          <p class="border-2 px-6 py-1 border-gray-200 dark:border-gray-700 rounded-sm"><b>Turma:</b> {{
+            turmas[0]?.label
+          }}</p>
         </div>
         <div class="flex justify-center my-8 gap-3 px-40">
           <v-btn text="Cancelar ação" variant="flat"

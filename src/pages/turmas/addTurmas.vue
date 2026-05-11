@@ -7,11 +7,11 @@ const user = ref({
   foto: "https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80",
 });
 
+// Itens do menu dropdown do avatar (Padronizado)
 const items = ref([
-  { title: "Click Me" },
-  { title: "Click Me" },
-  { title: "Click Me" },
-  { title: "Click Me 2" },
+  { title: "Meu Perfil", icon: "mdi-account-outline" },
+  { title: "Configurações", icon: "mdi-cog-outline" },
+  { title: "Sair", icon: "mdi-logout" },
 ]);
 
 const turmas = [
@@ -207,27 +207,40 @@ const selectedOpps = ref([]);
 
 <template>
   <Menu>
-    <div class="flex h-full items-center justify-end gap-4 mt-5">
-      <p class="hidden sm:block">Bem vindo, {{ user.name }}!</p>
-
-      <div class="d-flex justify-space-around">
-        <v-menu>
-          <template v-slot:activator="{ props }">
-            <v-icon icon="mdi-chevron-down" v-bind="props"></v-icon>
-          </template>
-          <v-list>
-            <v-list-item
-              v-for="(item, index) in items"
-              :key="index"
-              :value="index"
-            >
-              <v-list-item-title>{{ item.title }}</v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-menu>
+    <div class="flex h-full items-center justify-end gap-6 mt-5">
+      <!-- Info do Usuário -->
+      <div class="text-right hidden sm:block">
+        <p class="text-sm font-black text-gray-800 dark:text-gray-200 leading-tight">Bem vindo,</p>
+        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">{{ user.name }}</p>
       </div>
 
-      <v-avatar :image="user.foto"></v-avatar>
+      <!-- Menu Dropdown Padronizado -->
+      <v-menu transition="slide-y-transition">
+        <template v-slot:activator="{ props }">
+          <div v-bind="props" class="flex items-center gap-2 cursor-pointer group">
+            <v-avatar 
+              :image="user.foto" 
+              size="42" 
+              class="border-2 border-red-500 shadow-md group-hover:scale-105 transition-transform"
+            ></v-avatar>
+            <v-icon icon="mdi-chevron-down" size="small" class="text-gray-400 group-hover:text-red-500 transition-colors"></v-icon>
+          </div>
+        </template>
+
+        <v-list class="mt-2 rounded-xl border-0 shadow-2xl dark:bg-gray-800 min-w-[180px] pa-2">
+          <v-list-item 
+            v-for="(item, index) in items" 
+            :key="index" 
+            :value="index"
+            class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            <div class="flex items-center justify-center w-full gap-3">
+              <v-icon :icon="item.icon" size="18" class="text-gray-400"></v-icon>
+              <v-list-item-title class="font-bold text-sm dark:text-gray-200">{{ item.title }}</v-list-item-title>
+            </div>
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </div>
   </Menu>
 

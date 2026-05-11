@@ -8,6 +8,8 @@ import Turmas from "@/pages/turmas/turmas.vue";
 import addTurmas from "@/pages/turmas/addTurmas.vue";
 import GerAreasComp from "@/pages/Areas_Competencias/GerAreasComp.vue";
 import PerfilProfessor from "@/pages/professor/PerfilProfessor.vue";
+import DisponibilidadeProf from "@/pages/professor/DisponibilidadeProf.vue";
+import CalendarioProf from "@/pages/professor/CalendarioProf.vue";
 
 
 const routes = [
@@ -53,6 +55,17 @@ const routes = [
   name:"perfilprofessor",
   component: PerfilProfessor,
  },
+ {
+  path:"/disponibilidadeprof",
+  name:"disponibilidadeprof",
+  component: DisponibilidadeProf,
+ },
+  {
+  path:"/calendarioprof",
+  name:"calendarioprof",
+  component: CalendarioProf,
+ },
+
 
 
 ];
