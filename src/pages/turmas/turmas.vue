@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import Menu from '@/components/Menu.vue';
+import ModalEditarTurma from "@/components/ModalEditarTurma.vue";
 
 const user = ref({
     name: "User",
@@ -34,6 +35,22 @@ const turmaSelecionada = ref(null);
 function abrirGrade(turma) {
     turmaSelecionada.value = turma;
     dialogGrade.value = true;
+}
+
+const editModal = ref(false);
+const turmaParaEditar = ref(null);
+
+function abrirEdicao(turma) {
+    turmaParaEditar.value = JSON.parse(JSON.stringify(turma)); // Deep clone simple object
+    editModal.value = true;
+}
+
+function salvarTurma(form) {
+    console.log("Salvando alterações da turma:", form);
+    // Aqui viria a chamada para o backend
+    // Por enquanto apenas fechamos o modal
+    editModal.value = false;
+    alert("Alterações salvas com sucesso!");
 }
 
 const turmas = [
@@ -139,15 +156,16 @@ const turmas = [
 ];
 
 const periodoDescricoes = {
-    'M01': 'Antes do intervalo',
-    'M02': 'Depois do intervalo',
-    'T01': 'Antes do intervalo',
-    'T02': 'Depois do intervalo',
-    'N01': 'Antes do intervalo',
-    'N02': 'Depois do intervalo',
+    'M01': 'Manhã - Antes do intervalo',
+    'M02': 'Manhã - Depois do intervalo',
+    'T01': 'Tarde - Antes do intervalo',
+    'T02': 'Tarde - Depois do intervalo',
+    'N01': 'Noite - Antes do intervalo',
+    'N02': 'Noite - Depois do intervalo',
     'Manhã': 'Período da Manhã',
     'Tarde': 'Período da Tarde',
     'Noite': 'Período da Noite',
+    'INT': 'Período Integral',
     'Integral': 'Período Integral'
 };
 
@@ -311,6 +329,7 @@ const filteredTurmas = computed(() => {
                     </div>
                     <div class="flex">
                         <v-btn icon="mdi-pencil" variant="text" color="primary"
+                            @click="abrirEdicao(turma)"
                             :class="{ 'text-green-900': turma.modalidade === 'cai', 'text-blue-900': turma.modalidade === 'fic', 'text-orange-900': turma.modalidade === 'tec' }"></v-btn>
                         <v-btn icon="mdi-delete" variant="text" color="primary"
                             :class="{ 'text-green-900': turma.modalidade === 'cai', 'text-blue-900': turma.modalidade === 'fic', 'text-orange-900': turma.modalidade === 'tec' }"></v-btn>
@@ -465,8 +484,15 @@ const filteredTurmas = computed(() => {
         </div>
     </div>
 
-    <!-- Dialog: Visão Panorâmica do Cronograma -->
-    <v-dialog v-model="dialogGrade" max-width="900" scrollable>
+    <!-- Modal de Edição de Turma -->
+    <ModalEditarTurma 
+        v-model="editModal" 
+        :turma="turmaParaEditar" 
+        @save="salvarTurma"
+    />
+
+    <!-- Dialog de Visão Panorâmica -->
+    <v-dialog v-model="dialogGrade" max-width="1000" scrollable>
         <v-card v-if="turmaSelecionada" class="rounded-xl">
             <v-card-title class="flex items-center justify-between pa-5"
                 :class="{

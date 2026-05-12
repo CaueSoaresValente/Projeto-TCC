@@ -128,7 +128,7 @@ const periodos = [
   { label: "Manhã", value: "manha", color: "#F59E0B" },
   { label: "Tarde", value: "tarde", color: "#3B82F6" },
   { label: "Noite", value: "noite", color: "#6366F1" },
-  { label: "Integral", value: "integral", color: "#10B981" },
+  { label: "Integral", value: "INT", color: "#10B981" },
 ];
 
 function togglePeriodo(diaValue, periodoValue) {
@@ -166,7 +166,7 @@ const diaDoModal = ref(null);
 const buscaUC = ref("");
 
 // Guarda temporariamente as UCs marcadas no modal antes de salvar
-const ucsSelecionadasTemp = ref([]);
+const ucsSelecionadasTemp = ref([]); // Array de objetos { uc, periodo }
 
 // Guarda as UCs salvas de cada dia
 const ucsSalvas = ref({
@@ -178,12 +178,36 @@ const ucsSalvas = ref({
   sabado: [],
 });
 
+const periodosDisponiveis = ["M1", "M2", "T1", "T2", "N1", "N2", "Manhã", "Tarde", "Noite", "INT"];
+
 function abrirModal(diaValue) {
   diaDoModal.value = diaValue;
   buscaUC.value = "";
-  // Copia as UCs já salvas para a lista temporária
-  ucsSelecionadasTemp.value = [...ucsSalvas.value[diaValue]];
+  ucsSelecionadasTemp.value = ucsSalvas.value[diaValue].map(item => ({ ...item }));
   modalAberto.value = true;
+}
+
+function toggleUCSelection(ucNome) {
+  const index = ucsSelecionadasTemp.value.findIndex(item => item.uc === ucNome);
+  if (index > -1) {
+    ucsSelecionadasTemp.value.splice(index, 1);
+  } else {
+    ucsSelecionadasTemp.value.push({ uc: ucNome, periodo: "" });
+  }
+}
+
+function isUCSelected(ucNome) {
+  return ucsSelecionadasTemp.value.some(item => item.uc === ucNome);
+}
+
+function getSelectedUCPeriod(ucNome) {
+  const item = ucsSelecionadasTemp.value.find(item => item.uc === ucNome);
+  return item ? item.periodo : "";
+}
+
+function updateUCPeriod(ucNome, periodo) {
+  const item = ucsSelecionadasTemp.value.find(item => item.uc === ucNome);
+  if (item) item.periodo = periodo;
 }
 
 function salvarUCs() {
@@ -203,6 +227,20 @@ const oppsResponsavel = ref([
 ]);
 
 const selectedOpps = ref([]);
+
+const periodoDescricoes = {
+  'M01': 'Manhã - Antes do intervalo',
+  'M02': 'Manhã - Depois do intervalo',
+  'T01': 'Tarde - Antes do intervalo',
+  'T02': 'Tarde - Depois do intervalo',
+  'N01': 'Noite - Antes do intervalo',
+  'N02': 'Noite - Depois do intervalo',
+  'Manhã': 'Período da Manhã',
+  'Tarde': 'Período da Tarde',
+  'Noite': 'Período da Noite',
+  'INT': 'Período Integral',
+  'Integral': 'Período Integral'
+};
 </script>
 
 <template>
@@ -218,22 +256,16 @@ const selectedOpps = ref([]);
       <v-menu transition="slide-y-transition">
         <template v-slot:activator="{ props }">
           <div v-bind="props" class="flex items-center gap-2 cursor-pointer group">
-            <v-avatar 
-              :image="user.foto" 
-              size="42" 
-              class="border-2 border-red-500 shadow-md group-hover:scale-105 transition-transform"
-            ></v-avatar>
-            <v-icon icon="mdi-chevron-down" size="small" class="text-gray-400 group-hover:text-red-500 transition-colors"></v-icon>
+            <v-avatar :image="user.foto" size="42"
+              class="border-2 border-red-500 shadow-md group-hover:scale-105 transition-transform"></v-avatar>
+            <v-icon icon="mdi-chevron-down" size="small"
+              class="text-gray-400 group-hover:text-red-500 transition-colors"></v-icon>
           </div>
         </template>
 
         <v-list class="mt-2 rounded-xl border-0 shadow-2xl dark:bg-gray-800 min-w-[180px] pa-2">
-          <v-list-item 
-            v-for="(item, index) in items" 
-            :key="index" 
-            :value="index"
-            class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
+          <v-list-item v-for="(item, index) in items" :key="index" :value="index"
+            class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700">
             <div class="flex items-center justify-center w-full gap-3">
               <v-icon :icon="item.icon" size="18" class="text-gray-400"></v-icon>
               <v-list-item-title class="font-bold text-sm dark:text-gray-200">{{ item.title }}</v-list-item-title>
@@ -250,43 +282,27 @@ const selectedOpps = ref([]);
       <p>Preencha as informações necessárias para adicionar uma turma</p>
     </div>
     <div class="hidden lg:flex relative top-4 z-2">
-      <img
-        src="@/assets/imagemdois.png"
-        alt="Desenho de um professor"
-        width="200px"
-      />
+      <img src="@/assets/imagemdois.png" alt="Desenho de um professor" width="200px" />
     </div>
   </div>
 
   <div
-    class="border-t-4 border-red-600 mt-3 px-8 rounded-lg shadow-lg py-8 mx-5 md:mx-50! relative z-0 right-5 bottom-0.5"
-  >
+    class="border-t-4 border-red-600 mt-3 px-8 rounded-lg shadow-lg py-8 mx-5 md:mx-50! relative z-0 right-5 bottom-0.5">
     <div class="mx-5">
       <div class="lg:flex w-full gap-10">
         <div class="w-full mb-4">
           <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400">
             Nome da Turma
           </p>
-          <v-text-field
-            label="Digite o nome..."
-            variant="filled"
-            hide-details
-          ></v-text-field>
+          <v-text-field label="Digite o nome..." variant="filled" hide-details></v-text-field>
         </div>
 
         <div class="w-full mb-4">
           <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400">
             Áreas
           </p>
-          <v-select
-            v-model="selectedAreas"
-            chips
-            label="Selecione..."
-            :items="areasDisponiveis"
-            multiple
-            variant="filled"
-            hide-details
-          ></v-select>
+          <v-select v-model="selectedAreas" chips label="Selecione..." :items="areasDisponiveis" multiple
+            variant="filled" hide-details></v-select>
         </div>
       </div>
 
@@ -295,105 +311,50 @@ const selectedOpps = ref([]);
           <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400">
             Opp Responsável
           </p>
-          <v-select
-            v-model="selectedOpps"
-            chips
-            label="Selecione..."
-            :items="oppsResponsavel"
-            item-title="label"
-            item-value="value"
-            multiple
-            variant="filled"
-            hide-details
-          ></v-select>
+          <v-select v-model="selectedOpps" chips label="Selecione..." :items="oppsResponsavel" item-title="label"
+            item-value="value" multiple variant="filled" hide-details></v-select>
         </div>
 
         <div class="">
-          <p
-            class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400 mt-1"
-          >
+          <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400 mt-1">
             Tipos de Curso
           </p>
 
-          <v-radio-group
-            v-model="tipoCurso"
-            inline
-            hide-details
-            density="compact"
-          >
-            <v-radio
-              class="font-bold mr-4"
-              label="TÉC"
-              value="tec"
-              color="red"
-            ></v-radio>
-            <v-radio
-              class="font-bold mr-4"
-              label="CAI"
-              value="cai"
-              color="red"
-            ></v-radio>
-            <v-radio
-              class="font-bold"
-              label="FIC"
-              value="fic"
-              color="red"
-            ></v-radio>
+          <v-radio-group v-model="tipoCurso" inline hide-details density="compact">
+            <v-radio class="font-bold mr-4" label="TÉC" value="tec" color="red"></v-radio>
+            <v-radio class="font-bold mr-4" label="CAI" value="cai" color="red"></v-radio>
+            <v-radio class="font-bold" label="FIC" value="fic" color="red"></v-radio>
           </v-radio-group>
         </div>
       </div>
 
-      <div
-        class="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 mb-4"
-      >
+      <div class="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5 mb-4">
         <div>
-          <p
-            class="font-bold mt-3.5 lg:mt-0 mb-2 text-sm text-gray-500 dark:text-gray-400"
-          >
+          <p class="font-bold mt-3.5 lg:mt-0 mb-2 text-sm text-gray-500 dark:text-gray-400">
             Início
           </p>
-          <v-text-field
-            label="Selecione data"
-            type="date"
-            variant="filled"
-            hide-details
-          ></v-text-field>
+          <v-text-field label="Selecione data" type="date" variant="filled" hide-details></v-text-field>
         </div>
 
         <div>
           <p class="font-bold mb-2 text-sm text-gray-500 dark:text-gray-400">
             Fim
           </p>
-          <v-text-field
-            label="Selecione data"
-            type="date"
-            variant="filled"
-            hide-details
-          ></v-text-field>
+          <v-text-field label="Selecione data" type="date" variant="filled" hide-details></v-text-field>
         </div>
 
         <div>
           <p class="font-bold mb-2 text-sm text-gray-500 dark:text-gray-400">
             Aulas por Semana
           </p>
-          <v-text-field
-            label="Aulas por semana"
-            variant="filled"
-            hide-details
-            type="number"
-          ></v-text-field>
+          <v-text-field label="Aulas por semana" variant="filled" hide-details type="number"></v-text-field>
         </div>
 
         <div>
           <p class="font-bold mb-2 text-sm text-gray-500 dark:text-gray-400">
             Total de Aulas
           </p>
-          <v-text-field
-            label="Total de aulas"
-            variant="filled"
-            hide-details
-            type="number"
-          ></v-text-field>
+          <v-text-field label="Total de aulas" variant="filled" hide-details type="number"></v-text-field>
         </div>
       </div>
     </div>
@@ -402,153 +363,151 @@ const selectedOpps = ref([]);
 
     <div class="flex mx-5 sm:gap-8">
       <div class="w-full flex flex-col gap-4">
-        <p class="mt-3 font-bold text-grey-lighten-1">Dias da Semana</p>
+        <div class="flex items-center gap-2 mt-3">
+          <p class="font-bold text-grey-lighten-1">Dias da Semana</p>
+          <v-menu open-on-hover location="top">
+            <template v-slot:activator="{ props }">
+              <v-icon v-bind="props" color="grey-lighten-1" size="small" class="cursor-help">mdi-help-circle-outline</v-icon>
+            </template>
+            <v-card class="p-5 shadow-2xl rounded-xl dark:bg-gray-800 border-t-4 border-red-600" width="280">
+              <div class="flex items-center gap-3 mb-4">
+                <v-icon size="24" icon="mdi-book-open-outline" color="red"></v-icon>
+                <h2 class="text-lg font-black text-gray-800 dark:text-white uppercase tracking-tighter">Legenda</h2>
+              </div>
+
+              <div class="space-y-4">
+                <div>
+                  <p class="font-black text-xs text-gray-400 uppercase mb-2">Manhã</p>
+                  <ul class="list-none space-y-1 ml-1">
+                    <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600 dark:text-gray-300">
+                      <span class="text-red-500">•</span> <b>M01</b> &rarr; Antes do intervalo
+                    </li>
+                    <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600 dark:text-gray-300">
+                      <span class="text-red-500">•</span> <b>M02</b> &rarr; Depois do intervalo
+                    </li>
+                  </ul>
+                </div>
+
+                <v-divider></v-divider>
+
+                <div>
+                  <p class="font-black text-xs text-gray-400 uppercase mb-2">Tarde</p>
+                  <ul class="list-none space-y-1 ml-1">
+                    <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600 dark:text-gray-300">
+                      <span class="text-red-500">•</span> <b>T01</b> &rarr; Antes do intervalo
+                    </li>
+                    <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600 dark:text-gray-300">
+                      <span class="text-red-500">•</span> <b>T02</b> &rarr; Depois do intervalo
+                    </li>
+                  </ul>
+                </div>
+
+                <v-divider></v-divider>
+
+                <div>
+                  <p class="font-black text-xs text-gray-400 uppercase mb-2">Noite</p>
+                  <ul class="list-none space-y-1 ml-1">
+                    <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600 dark:text-gray-300">
+                      <span class="text-red-500">•</span> <b>N01</b> &rarr; Antes do intervalo
+                    </li>
+                    <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600 dark:text-gray-300">
+                      <span class="text-red-500">•</span> <b>N02</b> &rarr; Depois do intervalo
+                    </li>
+                  </ul>
+                </div>
+
+                <v-divider></v-divider>
+
+                <div>
+                  <p class="font-black text-xs text-gray-400 uppercase mb-2">Integral</p>
+                  <ul class="list-none space-y-1 ml-1">
+                    <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600 dark:text-gray-300">
+                      <span class="text-red-500">•</span> <b>INT</b> &rarr; Integral
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </v-card>
+          </v-menu>
+        </div>
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <div v-for="(dia, index) in diasDaSemana" :key="index">
             <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400">
               {{ dia.label }}
             </p>
-            <v-card
-              variant="outlined"
-              class="rounded-md pa-4 h-[250px] flex flex-col border-gray-300 dark:border-gray-600"
-            >
+            <v-card variant="outlined"
+              class="rounded-md pa-4 h-[250px] flex flex-col border-gray-300 dark:border-gray-600">
               <div class="flex-1">
-                <div
-                  v-if="selectedPeriodo[dia.value]"
-                  class="flex flex-col items-center"
-                >
+                <div v-if="selectedPeriodo[dia.value]" class="flex flex-col items-center">
                   <!-- Se for Manhã -->
-                  <div
-                    v-if="selectedPeriodo[dia.value] === 'manha'"
-                    class="w-full rounded py-2 px-2 mb-2 flex items-center justify-center gap-1 border bg-manha"
-                  >
+                  <div v-if="selectedPeriodo[dia.value] === 'manha'"
+                    class="w-full rounded py-2 px-2 mb-2 flex items-center justify-center gap-1 border bg-manha">
                     <v-icon icon="mdi-circle" size="8" color="#F59E0B"></v-icon>
-                    <span class="text-sm font-bold" style="color: #333"
-                      >Manhã</span
-                    >
-                    <v-icon
-                      icon="mdi-close"
-                      size="18"
-                      color="#333"
-                      class="cursor-pointer ml-1"
-                      @click="removerPeriodo(dia.value)"
-                    ></v-icon>
+                    <span class="text-sm font-bold" style="color: #333">Manhã</span>
+                    <v-icon icon="mdi-close" size="18" color="#333" class="cursor-pointer ml-1"
+                      @click="removerPeriodo(dia.value)"></v-icon>
                   </div>
                   <!-- Se for Tarde -->
-                  <div
-                    v-else-if="selectedPeriodo[dia.value] === 'tarde'"
-                    class="w-full rounded py-2 px-2 mb-2 flex items-center justify-center gap-1 border bg-tarde"
-                  >
+                  <div v-else-if="selectedPeriodo[dia.value] === 'tarde'"
+                    class="w-full rounded py-2 px-2 mb-2 flex items-center justify-center gap-1 border bg-tarde">
                     <v-icon icon="mdi-circle" size="8" color="#3B82F6"></v-icon>
-                    <span class="text-sm font-bold" style="color: #333"
-                      >Tarde</span
-                    >
-                    <v-icon
-                      icon="mdi-close"
-                      size="18"
-                      color="#333"
-                      class="cursor-pointer ml-1"
-                      @click="removerPeriodo(dia.value)"
-                    ></v-icon>
+                    <span class="text-sm font-bold" style="color: #333">Tarde</span>
+                    <v-icon icon="mdi-close" size="18" color="#333" class="cursor-pointer ml-1"
+                      @click="removerPeriodo(dia.value)"></v-icon>
                   </div>
                   <!-- Se for Noite -->
-                  <div
-                    v-else-if="selectedPeriodo[dia.value] === 'noite'"
-                    class="w-full rounded py-2 px-2 mb-2 flex items-center justify-center gap-1 border bg-noite"
-                  >
+                  <div v-else-if="selectedPeriodo[dia.value] === 'noite'"
+                    class="w-full rounded py-2 px-2 mb-2 flex items-center justify-center gap-1 border bg-noite">
                     <v-icon icon="mdi-circle" size="8" color="#6366F1"></v-icon>
-                    <span class="text-sm font-bold" style="color: #333"
-                      >Noite</span
-                    >
-                    <v-icon
-                      icon="mdi-close"
-                      size="18"
-                      color="#333"
-                      class="cursor-pointer ml-1"
-                      @click="removerPeriodo(dia.value)"
-                    ></v-icon>
+                    <span class="text-sm font-bold" style="color: #333">Noite</span>
+                    <v-icon icon="mdi-close" size="18" color="#333" class="cursor-pointer ml-1"
+                      @click="removerPeriodo(dia.value)"></v-icon>
                   </div>
                   <!-- Se for Integral -->
-                  <div
-                    v-else-if="selectedPeriodo[dia.value] === 'integral'"
-                    class="w-full rounded py-2 px-2 mb-2 flex items-center justify-center gap-1 border bg-integral"
-                  >
+                  <div v-else-if="selectedPeriodo[dia.value] === 'INT'"
+                    class="w-full rounded py-2 px-2 mb-2 flex items-center justify-center gap-1 border bg-integral">
                     <v-icon icon="mdi-circle" size="8" color="#10B981"></v-icon>
-                    <span class="text-sm font-bold" style="color: #333"
-                      >Integral</span
-                    >
-                    <v-icon
-                      icon="mdi-close"
-                      size="18"
-                      color="#333"
-                      class="cursor-pointer ml-1"
-                      @click="removerPeriodo(dia.value)"
-                    ></v-icon>
+                    <span class="text-sm font-bold" style="color: #333">Integral</span>
+                    <v-icon icon="mdi-close" size="18" color="#333" class="cursor-pointer ml-1"
+                      @click="removerPeriodo(dia.value)"></v-icon>
                   </div>
 
                   <div class="w-full px-5">
                     <div
                       class="w-full py-3 px-1 flex flex-col items-center justify-center border-2 border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer"
-                      @click="abrirModal(dia.value)"
-                    >
-                      <v-icon
-                        icon="mdi-plus"
-                        size="16"
-                        class="text-gray-800 dark:text-white"
-                      ></v-icon>
-                      <p
-                        class="text-[13px] font-bold text-center leading-tight text-gray-800 dark:text-white"
-                      >
+                      @click="abrirModal(dia.value)">
+                      <v-icon icon="mdi-plus" size="16" class="text-gray-800 dark:text-white"></v-icon>
+                      <p class="text-[13px] font-bold text-center leading-tight text-gray-800 dark:text-white">
                         Unidade<br />Curricular
                       </p>
                     </div>
                   </div>
 
                   <!-- Lista de UCs salvas neste dia com barra de rolagem -->
-                  <div
-                    v-if="ucsSalvas[dia.value].length > 0"
-                    class="w-full mt-3.5 scroll-custom pl-1"
-                  >
-                    <div
-                      v-for="(uc, i) in ucsSalvas[dia.value]"
-                      :key="i"
-                      class="text-[13px] bg-gray-100 dark:bg-[#414141] rounded px-2 py-1 mb-1 text-gray-700 dark:text-white font-bold"
-                    >
-                      {{ uc }}
+                  <div v-if="ucsSalvas[dia.value].length > 0" class="w-full mt-3.5 scroll-custom pl-1">
+                    <div v-for="(item, i) in ucsSalvas[dia.value]" :key="i"
+                      class="text-[12px] bg-gray-100 dark:bg-[#414141] rounded px-2 py-1 mb-1 text-gray-700 dark:text-white font-bold flex justify-between items-center group">
+                      <div class="flex-1 flex justify-between items-center pr-1">
+                        <span class="leading-tight">{{ item.uc }}</span>
+                        <span class="text-red-600 ml-2 whitespace-nowrap">{{ item.periodo }}</span>
+                      </div>
+                      <v-icon icon="mdi-close" size="12" class="opacity-0 group-hover:opacity-100 cursor-pointer"
+                        @click="ucsSalvas[dia.value].splice(i, 1)"></v-icon>
                     </div>
                   </div>
                 </div>
-                <div
-                  v-else
-                  class="flex flex-col items-center justify-center text-center h-full"
-                >
-                  <v-avatar
-                    color="#F3F3F1"
-                    class="dark:bg-[#414141] mb-2"
-                    size="40"
-                  >
-                    <v-icon
-                      icon="mdi-clock-outline"
-                      size="24"
-                      class="text-[#D1D1CB] dark:text-gray-300"
-                    ></v-icon>
+                <div v-else class="flex flex-col items-center justify-center text-center h-full">
+                  <v-avatar color="#F3F3F1" class="dark:bg-[#414141] mb-2" size="40">
+                    <v-icon icon="mdi-clock-outline" size="24" class="text-[#D1D1CB] dark:text-gray-300"></v-icon>
                   </v-avatar>
-                  <p
-                    class="text-[13px] font-bold text-gray-500 dark:text-gray-400 leading-tight"
-                  >
+                  <p class="text-[13px] font-bold text-gray-500 dark:text-gray-400 leading-tight">
                     Toque para Selecionar o Periodo
                   </p>
                 </div>
               </div>
-              <div
-                v-if="!selectedPeriodo[dia.value]"
-                class="mb-3 space-y-1 text-center pb-4"
-              >
-                <p
-                  v-for="periodo in periodos"
-                  :key="periodo.value"
-                  class="text-[15px] cursor-pointer font-bold transition-colors text-center"
-                  :class="{
+              <div v-if="!selectedPeriodo[dia.value]" class="mb-3 space-y-1 text-center pb-4">
+                <p v-for="periodo in periodos" :key="periodo.value"
+                  class="text-[15px] cursor-pointer font-bold transition-colors text-center" :class="{
                     'text-manha':
                       selectedPeriodo[dia.value] === 'manha' &&
                       periodo.value === 'manha',
@@ -563,9 +522,7 @@ const selectedOpps = ref([]);
                       periodo.value === 'integral',
                     'text-gray-800 dark:text-white':
                       selectedPeriodo[dia.value] !== periodo.value,
-                  }"
-                  @click="togglePeriodo(dia.value, periodo.value)"
-                >
+                  }" @click="togglePeriodo(dia.value, periodo.value)">
                   {{ periodo.label }}
                 </p>
               </div>
@@ -657,35 +614,25 @@ const selectedOpps = ref([]);
   </div>
 
   <!-- Modal de Unidade Curricular -->
-  <v-dialog v-model="modalAberto" max-width="500">
+  <v-dialog v-model="modalAberto" max-width="520">
     <v-card class="pa-5 rounded-xl">
-      <v-card-title class="text-lg font-bold"
-        >Selecionar Unidades Curriculares</v-card-title
-      >
+      <v-card-title class="text-lg font-bold">Selecionar Unidades Curriculares</v-card-title>
 
       <!-- Campo de busca -->
-      <v-text-field
-        v-model="buscaUC"
-        label="Buscar unidade curricular..."
-        variant="filled"
-        hide-details
-        prepend-inner-icon="mdi-magnify"
-        class="mb-4"
-      ></v-text-field>
+      <v-text-field v-model="buscaUC" label="Buscar unidade curricular..." variant="filled" hide-details
+        prepend-inner-icon="mdi-magnify" class="mb-4"></v-text-field>
 
-      <!-- Lista de UCs com checkboxes -->
-      <div style="max-height: 300px; overflow-y: auto">
+      <!-- Lista de UCs com checkboxes + período -->
+      <div style="max-height: 350px; overflow-y: auto" class="pr-1">
         <div v-for="(uc, index) in unidadesCurriculares" :key="index">
-          <!-- Só mostra se o nome bate com a busca -->
-          <div v-if="uc.nome.toLowerCase().includes(buscaUC.toLowerCase())">
-            <v-checkbox
-              v-model="ucsSelecionadasTemp"
-              :label="uc.nome + ' (' + uc.carga + ')'"
-              :value="uc.nome"
-              color="red"
-              hide-details
-              density="compact"
-            ></v-checkbox>
+          <div v-if="uc.nome.toLowerCase().includes(buscaUC.toLowerCase())"
+            class="flex items-center gap-2 mb-2 pb-2 px-4">
+            <v-checkbox :model-value="isUCSelected(uc.nome)" @update:model-value="toggleUCSelection(uc.nome)"
+              :label="uc.nome + ' (' + uc.carga + ')'" color="red" hide-details density="compact"
+              class="flex-1"></v-checkbox>
+            <v-select v-if="isUCSelected(uc.nome)" :model-value="getSelectedUCPeriod(uc.nome)"
+              @update:model-value="updateUCPeriod(uc.nome, $event)" :items="periodosDisponiveis" label="Período"
+              variant="outlined" density="compact" hide-details class="max-w-[130px] mt-2"></v-select>
           </div>
         </div>
       </div>
@@ -693,9 +640,7 @@ const selectedOpps = ref([]);
       <!-- Botões do modal -->
       <v-card-actions class="justify-end mt-4">
         <v-btn variant="text" @click="fecharModal()">Cancelar</v-btn>
-        <v-btn color="red" class="bg-red-600 text-white" @click="salvarUCs()"
-          >Salvar</v-btn
-        >
+        <v-btn color="red" class="bg-red-600 text-white" @click="salvarUCs()">Salvar</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -704,33 +649,41 @@ const selectedOpps = ref([]);
 <style scoped>
 /* Estilos para o fundo e bordas dos chips selecionados */
 .bg-manha {
-  background-color: #fef3c7; /* Amarelo clarinho */
+  background-color: #fef3c7;
+  /* Amarelo clarinho */
   border-color: #f59e0b;
 }
+
 .dark .bg-manha {
   background-color: rgba(245, 158, 11, 0.2);
 }
 
 .bg-tarde {
-  background-color: #dbeafe; /* Azul clarinho */
+  background-color: #dbeafe;
+  /* Azul clarinho */
   border-color: #3b82f6;
 }
+
 .dark .bg-tarde {
   background-color: rgba(59, 130, 246, 0.2);
 }
 
 .bg-noite {
-  background-color: #e0e7ff; /* Roxo/Indigo clarinho */
+  background-color: #e0e7ff;
+  /* Roxo/Indigo clarinho */
   border-color: #6366f1;
 }
+
 .dark .bg-noite {
   background-color: rgba(99, 102, 241, 0.2);
 }
 
 .bg-integral {
-  background-color: #d1fae5; /* Verde clarinho */
+  background-color: #d1fae5;
+  /* Verde clarinho */
   border-color: #10b981;
 }
+
 .dark .bg-integral {
   background-color: rgba(16, 185, 129, 0.2);
 }
@@ -750,32 +703,41 @@ const selectedOpps = ref([]);
 .text-manha {
   color: #f59e0b;
 }
+
 .text-tarde {
   color: #3b82f6;
 }
+
 .text-noite {
   color: #6366f1;
 }
+
 .text-integral {
   color: #10b981;
 }
 
 /* Barra de rolagem personalizada para a lista de UCs no card */
 .scroll-custom {
-  max-height: 100px; /* Ajustado para o card de 250px */
-  overflow-y: auto; /* Volta a aparecer só quando necessário */
+  max-height: 100px;
+  /* Ajustado para o card de 250px */
+  overflow-y: auto;
+  /* Volta a aparecer só quando necessário */
   padding-right: 4px;
 }
 
 /* Deixar a barra de rolagem elegante e discreta */
 .scroll-custom::-webkit-scrollbar {
-  width: 4px; /* Mais fininha */
+  width: 4px;
+  /* Mais fininha */
 }
+
 .scroll-custom::-webkit-scrollbar-thumb {
   background-color: #bdbdbd;
   border-radius: 10px;
 }
+
 .scroll-custom::-webkit-scrollbar-track {
-  background: transparent; /* Fundo transparente para ficar mais limpo */
+  background: transparent;
+  /* Fundo transparente para ficar mais limpo */
 }
 </style>
