@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import app from './app.js';
 import { initializeDatabase } from './database/index.js';
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 3001;
 
 const startServer = async () => {
   await initializeDatabase();

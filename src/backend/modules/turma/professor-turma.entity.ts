@@ -1,24 +1,23 @@
-// src/backend/modules/turma/professor-turma.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { Professor } from '../professor/professor.entity.js';
 import { Turma } from './turma.entity.js';
 
 @Entity('professor_turma')
-@Unique(['idTurma', 'idProfessor']) // 1 professor por turma (designação única)
+@Unique(['idTurma', 'idProfessor']) // Garante que o mesmo professor não seja adicionado duas vezes à mesma turma
 export class ProfessorTurma {
-  @PrimaryGeneratedColumn({ name: 'id_professorturma' })
+  @PrimaryGeneratedColumn({ name: 'id_professor_turma' })
   idProfessorTurma: number;
 
-  @Column({ name: 'id_turma', type: 'int', unique: true })
+  @Column({ name: 'id_turma', type: 'int' })
   idTurma: number;
 
-  @Column({ name: 'id_professor', type: 'int', unique: true })
+  @Column({ name: 'id_professor', type: 'int' })
   idProfessor: number;
 
   @Column({ type: 'boolean', default: true })
   status: boolean;
 
-  @ManyToOne(() => Turma, (turma) => turma.professorTurma, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => Turma, (turma) => turma.professorTurmas, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'id_turma' })
   turma: Turma;
 

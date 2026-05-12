@@ -130,30 +130,7 @@ const dadosCompetencias = [
 </script>
 
 <template>
-  <Menu>
-    <div class="flex h-full items-center justify-end gap-4 mt-5">
-      <p class="hidden sm:block">Bem vindo, {{ user.name }}!</p>
-
-      <div class="d-flex justify-space-around">
-        <v-menu>
-          <template v-slot:activator="{ props }">
-            <v-icon icon="mdi-chevron-down" v-bind="props"></v-icon>
-          </template>
-          <v-list>
-            <v-list-item
-              v-for="(item, index) in items"
-              :key="index"
-              :value="index"
-            >
-              <v-list-item-title>{{ item.title }}</v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-menu>
-      </div>
-
-      <v-avatar :image="user.foto"></v-avatar>
-    </div>
-  </Menu>
+  <Menu />
   <div class="mx-5 md:mx-20! lg:mx-50!">
     <h1 class="text-3xl font-bold my-4 break-words">
       Gerenciamento de Áreas e Competências

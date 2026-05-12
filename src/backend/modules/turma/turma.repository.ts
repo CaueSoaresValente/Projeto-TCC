@@ -5,6 +5,6 @@ export class TurmaRepository {
   private repo = AppDataSource.getRepository(Turma);
 
   async findAll(): Promise<Turma[]> {
-    return await this.repo.find({ relations: ['gestor', 'opp', 'disciplina'] });
+    return await this.repo.find({ relations: ['criador', 'opp', 'turmaUCs'] });
   }
 }

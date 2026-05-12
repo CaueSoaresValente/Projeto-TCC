@@ -1,26 +1,25 @@
-// src/backend/modules/turma/turma.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToOne, JoinColumn } from 'typeorm';
-import { Gestor } from '../gestor/gestor.entity.js';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, OneToOne, JoinColumn } from 'typeorm';
+import { Cadastro } from '../cadastro/cadastro.entity.js';
 import { OPP } from '../opp/opp.entity.js';
-import { Disciplina } from '../disciplina/disciplina.entity.js';
 import { ProfessorTurma } from './professor-turma.entity.js';
+import { TurmaUC } from './turma-uc.entity.js';
 
 @Entity('turma')
 export class Turma {
   @PrimaryGeneratedColumn({ name: 'id_turma' })
   idTurma: number;
 
-  @Column({ type: 'varchar', length: 100 })
-  nome: string;
-
-  @Column({ name: 'id_gestor', type: 'int' })
-  idGestor: number;
+  @Column({ name: 'id_criador', type: 'int' })
+  idCriador: number;
 
   @Column({ name: 'id_opp', type: 'int' })
   idOPP: number;
 
-  @Column({ name: 'id_disciplina', type: 'int' })
-  idDisciplina: number;
+  @Column({ type: 'varchar', length: 100 })
+  nome: string;
+
+  @Column({ name: 'tipo_curso', type: 'varchar', length: 10 })
+  tipoCurso: string; // 'TEC', 'CAI' ou 'FIC'
 
   @Column({ type: 'date', name: 'data_inicio' })
   dataInicio: Date;
@@ -28,25 +27,26 @@ export class Turma {
   @Column({ type: 'date', name: 'data_termino' })
   dataTermino: Date;
 
-  @Column({ type: 'varchar', length: 20 })
-  periodo: string; // "Manhã", "Tarde", "Noite"
+  @Column({ name: 'aulas_semana', type: 'int', nullable: true })
+  aulasSemana: number;
+
+  @Column({ name: 'total_aulas', type: 'int', nullable: true })
+  totalAulas: number;
 
   @Column({ type: 'boolean', default: true })
   status: boolean;
 
-  @ManyToOne(() => Gestor, (gestor) => gestor.turmas, { nullable: false })
-  @JoinColumn({ name: 'id_gestor' })
-  gestor: Gestor;
+  @ManyToOne(() => Cadastro, { nullable: false })
+  @JoinColumn({ name: 'id_criador' })
+  criador: Cadastro;
 
   @ManyToOne(() => OPP, (opp) => opp.turmas, { nullable: false })
   @JoinColumn({ name: 'id_opp' })
   opp: OPP;
 
-  @ManyToOne(() => Disciplina, (disciplina) => disciplina.turmas, { nullable: false })
-  @JoinColumn({ name: 'id_disciplina' })
-  disciplina: Disciplina;
+  @OneToMany(() => TurmaUC, (tuc) => tuc.turma)
+  turmaUCs: TurmaUC[];
 
-  // Designação (1:1 com ProfessorTurma)
-  @OneToOne(() => ProfessorTurma, (pt) => pt.turma, { nullable: true })
-  professorTurma?: ProfessorTurma;
+  @OneToMany(() => ProfessorTurma, (pt) => pt.turma)
+  professorTurmas: ProfessorTurma[];
 }

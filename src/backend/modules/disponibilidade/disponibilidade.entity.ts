@@ -1,14 +1,15 @@
 // src/backend/modules/disponibilidade/disponibilidade.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { Professor } from '../professor/professor.entity.js';
 
 @Entity('disponibilidade')
+@Unique(['idProfessor', 'diaSemana'])
 export class Disponibilidade {
   @PrimaryGeneratedColumn({ name: 'id_disponibilidade' })
   idDisponibilidade: number;
 
-  @Column({ type: 'date' })
-  dia: Date;
+  @Column({ name: 'dia_semana', type: 'varchar', length: 20 })
+  diaSemana: string;
 
   @Column({ type: 'varchar', length: 20 })
   periodo: string; // "Manhã", "Tarde", "Noite"

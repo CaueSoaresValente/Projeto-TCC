@@ -14,7 +14,7 @@ export class Cadastro {
   @Column({ select: false, type: 'varchar', length: 255 })
   senha: string;
 
-  @Column({ name: 'função', type: 'varchar', length: 50 })
+  @Column({ name: 'funcao', type: 'varchar', length: 50 })
   funcao: string;
 
   @Column({ type: 'varchar', length: 100 })

@@ -15,7 +15,7 @@
 ### 📋 Turma
 - Pode ser criada por um **Gestor** ou por um **OPP**
 - Se o Gestor cria, ele pode colocar a si mesmo (como gestor responsável) ou designar OPP(s)
-- Uma turma pode ter **múltiplos OPPs** responsáveis
+- Uma turma pode ter **apenas um OPP** responsável
 - Uma turma tem **múltiplas UCs** distribuídas em dias/períodos
 
 ### ⚙️ Regras de Designação de Professor (o "motor inteligente" do sistema)
@@ -102,7 +102,7 @@ erDiagram
     professor ||--o{ certificacao : "possui"
     professor }o--o{ turma : "professor_turma"
     
-    turma }o--o{ opp : "turma_opp"
+    turma }o--|| opp : "possui um"
     turma ||--o{ turma_uc : "grade semanal"
     turma_uc }o--|| unidade_curricular : "qual UC"
 
@@ -180,11 +180,7 @@ erDiagram
         boolean status
     }
 
-    turma_opp {
-        int id_turma_opp PK
-        int id_turma FK
-        int id_opp FK
-    }
+    %% Tabela turma_opp removida, id_opp agora está na tabela turma
 
     turma_uc {
         int id_turma_uc PK
@@ -330,8 +326,8 @@ erDiagram
 ### 4.10 `turma` ⚠️ Ajustada
 
 > **Mudanças:** 
-> - `id_disciplina` removido (agora é N:N via `turma_uc`)
-> - `id_opp` removido (agora é N:N via `turma_opp`)
+> - `id_uc` removido (agora é N:N via `turma_uc`)
+> - `id_opp` adicionado (relação 1:N — uma turma tem um OPP)
 > - `id_gestor` virou `id_criador` → aponta para `cadastro` (pode ser gestor OU opp)
 > - Campos novos: `tipo_curso`, `aulas_semana`, `total_aulas`
 
@@ -339,6 +335,7 @@ erDiagram
 |-------|------|--------|------------|
 | `id_turma` | INT, PK, AUTO_INCREMENT | — | — |
 | `id_criador` | INT, FK → cadastro | obrigatório | Quem criou (pode ser gestor ou OPP) |
+| `id_opp` | INT, FK → opp | obrigatório | OPP responsável pela turma |
 | `nome` | VARCHAR(100) | obrigatório | "CPTMTDS04" |
 | `tipo_curso` | VARCHAR(10) | obrigatório | `'TEC'`, `'CAI'` ou `'FIC'` |
 | `data_inicio` | DATE | obrigatório | — |
@@ -350,16 +347,8 @@ erDiagram
 > [!IMPORTANT]
 > **Por que `id_criador` aponta para `cadastro` e não para `gestor`?** Porque tanto gestores quanto OPPs podem criar turmas. Como ambos têm um registro em `cadastro`, apontar pra lá resolve sem complicar.
 
-### 4.11 `turma_opp` 🆕 NOVA (N:N)
+### 4.11 `turma_opp` 🗑️ REMOVIDA
 
-> **Propósito:** Quais OPPs são responsáveis por cada turma.
-
-| Campo | Tipo | Regras |
-|-------|------|--------|
-| `id_turma_opp` | INT, PK, AUTO_INCREMENT | — |
-| `id_turma` | INT, FK → turma | — |
-| `id_opp` | INT, FK → opp | — |
-| | | UNIQUE(id_turma, id_opp) |
 
 ### 4.12 `turma_uc` 🆕 NOVA (grade semanal)
 
@@ -479,7 +468,7 @@ flowchart LR
 | 8 | `opp_area` | Ligação N:N | 🆕 Criar |
 | 9 | `professor_uc` | Ligação N:N | 🔄 Renomear de `professor_disciplina` |
 | 10 | `turma` | Principal | ⚠️ Ajustar campos |
-| 11 | `turma_opp` | Ligação N:N | 🆕 Criar |
+| 11 | `turma_opp` | Ligação N:N | 🗑️ Remover (id_opp agora está em turma) |
 | 12 | `turma_uc` | Grade semanal | 🆕 Criar |
 | 13 | `professor_turma` | Ligação N:N | ⚠️ Corrigir constraints |
 | 14 | `disponibilidade` | Dados | ⚠️ Trocar `dia` → `dia_semana` |

@@ -126,43 +126,7 @@ const aulaDetalhe = {
 </script>
 
 <template>
-  <Menu>
-    <div class="flex h-full items-center justify-end gap-6 mt-5">
-      <!-- Info do Usuário -->
-      <div class="text-right hidden sm:block">
-        <p class="text-sm font-black text-gray-800 dark:text-gray-200 leading-tight">Bem vindo,</p>
-        <p class="text-xs font-bold text-gray-500 dark:text-gray-400">{{ user.name }}</p>
-      </div>
-
-      <!-- Menu Dropdown Padronizado -->
-      <v-menu transition="slide-y-transition">
-        <template v-slot:activator="{ props }">
-          <div v-bind="props" class="flex items-center gap-2 cursor-pointer group">
-            <v-avatar 
-              :image="user.foto" 
-              size="42" 
-              class="border-2 border-red-500 shadow-md group-hover:scale-105 transition-transform"
-            ></v-avatar>
-            <v-icon icon="mdi-chevron-down" size="small" class="text-gray-400 group-hover:text-red-500 transition-colors"></v-icon>
-          </div>
-        </template>
-
-        <v-list class="mt-2 rounded-xl border-0 shadow-2xl dark:bg-gray-800 min-w-[180px] pa-2">
-          <v-list-item 
-            v-for="(item, index) in items" 
-            :key="index" 
-            :value="index"
-            class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            <div class="flex items-center justify-center w-full gap-3">
-              <v-icon :icon="item.icon" size="18" class="text-gray-400"></v-icon>
-              <v-list-item-title class="font-bold text-sm dark:text-gray-200">{{ item.title }}</v-list-item-title>
-            </div>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-    </div>
-  </Menu>
+  <Menu />
 
   <div class="mx-5 md:mx-16 lg:mx-24 mt-8 pb-10">
     <h1 class="text-3xl font-black text-gray-800 dark:text-white mb-4">Meu calendário</h1>

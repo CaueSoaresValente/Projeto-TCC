@@ -5,7 +5,7 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "vite",
-    "dev:backend": "ts-node-dev --respawn --transpile-only src/backend/index.ts",
+    "dev:backend": "tsx --tsconfig tsconfig.backend.json --watch src/backend/index.ts",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",

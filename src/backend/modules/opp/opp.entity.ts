@@ -2,8 +2,8 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { Cadastro } from '../cadastro/cadastro.entity.js';
 import { Gestor } from '../gestor/gestor.entity.js';
-import { Professor } from '../professor/professor.entity.js';
 import { Turma } from '../turma/turma.entity.js';
+import { OPPArea } from '../area/opp-area.entity.js';
 
 @Entity('opp')
 export class OPP {
@@ -19,9 +19,6 @@ export class OPP {
   @Column({ type: 'boolean', default: true })
   status: boolean;
 
-  @Column({ type: 'varchar', length: 100 })
-  setor: string;
-
   @ManyToOne(() => Cadastro, (cadastro) => cadastro.opp, { nullable: false })
   @JoinColumn({ name: 'id_cadastro' })
   cadastro: Cadastro;
@@ -30,9 +27,9 @@ export class OPP {
   @JoinColumn({ name: 'id_gestor' })
   gestor: Gestor;
 
-  @OneToMany(() => Professor, (professor) => professor.opp)
-  professors: Professor[];
-
   @OneToMany(() => Turma, (turma) => turma.opp)
   turmas: Turma[];
+
+  @OneToMany(() => OPPArea, (oa) => oa.opp)
+  oppAreas: OPPArea[];
 }
