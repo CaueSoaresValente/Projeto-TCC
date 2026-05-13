@@ -14,7 +14,7 @@
           </p>
         </v-col>
 
-        <v-col cols="12" md="4" class="text-center">
+        <v-col cols="12" md="4" class="text-center" v-if="showLinks">
           <h3 class="text-xl font-bold mb-6">Links Rápidos</h3>
           <div class="flex flex-col gap-3">
             <router-link to="/turmas" class="text-white hover:text-gray-200 transition-colors">Gestão de Turmas</router-link>
@@ -22,6 +22,7 @@
             <router-link to="/" class="text-white hover:text-gray-200 transition-colors">Dashboard</router-link>
           </div>
         </v-col>
+        <v-spacer v-else></v-spacer>
 
         <v-col cols="12" md="4" class="text-center text-md-right">
           <h3 class="text-xl font-bold mb-6">Siga-nos</h3>
@@ -51,6 +52,15 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
+
+const route = useRoute();
+
+const showLinks = computed(() => {
+  const loginRoutes = ['telainput', 'login', 'cadastro'];
+  return !loginRoutes.includes(route.name as string);
+});
 </script>
 
 <style scoped>

@@ -17,8 +17,6 @@ export class UnidadeCurricular {
   @Column({ type: 'text', nullable: true })
   descricao: string;
 
-  @Column({ name: 'carga_horaria', type: 'int', nullable: true })
-  cargaHoraria: number;
 
   @Column({ type: 'boolean', default: true })
   status: boolean;

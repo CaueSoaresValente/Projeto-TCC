@@ -246,19 +246,19 @@ const periodoDescricoes = {
 <template>
   <Menu />
 
-  <div class="flex justify-between mx-50! mt-8">
+  <div class="flex flex-col md:flex-row justify-between px-4 md:px-10 lg:px-20 xl:px-40 mt-8 gap-4">
     <div>
-      <p class="text-4xl font-bold">Adicionar Turma</p>
-      <p>Preencha as informações necessárias para adicionar uma turma</p>
+      <h2 class="text-3xl md:text-4xl font-bold">Adicionar Turma</h2>
+      <p class="text-sm md:text-base text-gray-600 dark:text-gray-400">Preencha as informações necessárias para adicionar uma turma</p>
     </div>
-    <div class="hidden lg:flex relative top-4 z-2">
+    <div class="hidden lg:flex relative top-4">
       <img src="@/assets/imagemdois.png" alt="Desenho de um professor" width="200px" />
     </div>
   </div>
 
   <div
-    class="border-t-4 border-red-600 mt-3 px-8 rounded-lg shadow-lg py-8 mx-5 md:mx-50! relative z-0 right-5 bottom-0.5">
-    <div class="mx-5">
+    class="border-t-4 border-red-600 mt-6 px-4 md:px-8 py-8 rounded-lg shadow-lg mx-4 md:mx-10 lg:mx-20 xl:mx-40 bg-white dark:bg-[#121212]">
+    <div class="w-full">
       <div class="lg:flex w-full gap-10">
         <div class="w-full mb-4">
           <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400">

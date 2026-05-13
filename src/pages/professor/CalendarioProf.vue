@@ -128,7 +128,7 @@ const aulaDetalhe = {
 <template>
   <Menu />
 
-  <div class="mx-5 md:mx-16 lg:mx-24 mt-8 pb-10">
+  <div class="px-4 md:px-10 lg:px-20 xl:px-40 mt-8 pb-10">
     <h1 class="text-3xl font-black text-gray-800 dark:text-white mb-4">Meu calendário</h1>
     <v-card class="rounded-xl p-6 shadow-lg" variant="flat">
       <v-row>

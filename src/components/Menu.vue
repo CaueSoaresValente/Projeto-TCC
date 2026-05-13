@@ -3,18 +3,23 @@
     <!-- Logo SENAI -->
     <div
       class="bg-red-600 text-white px-9 py-5 [clip-path:polygon(0%_0%,_100%_0%,_70%_100%,_0%_100%)] text-center text-5xl font-black italic tracking-tighter tracking-wide"
-      style="font-family: &quot;Archivo Black&quot;, sans-serif">
+      style="font-family: &quot;Archivo Black&quot;, sans-serif"
+    >
       <h1 class="ms-4 relative -left-10">SENAI</h1>
     </div>
-    <div class="w-full divmain bg-white dark:bg-[#121212] flex flex-col justify-center">
+    <div
+      class="w-full divmain bg-white dark:bg-[#121212] flex flex-col justify-center"
+    >
       <div class="bg-red-600 w-full absolute top-0 left-0">
         <div class="p-1 bg-red-600 w-full"></div>
       </div>
-      
+
       <!-- Container Centralizado na Altura e Largura -->
-      <div class="max-w-[1600px] w-full mx-auto px-6 flex items-center justify-between h-full">
+      <div
+        class="max-w-[1600px] w-full mx-auto px-6 flex items-center justify-between h-full"
+      >
         <!-- Barra de navegação baseada no perfil -->
-          <nav class="flex items-center gap-1 overflow-x-auto py-1 mt-2">
+        <nav class="hidden xl:flex items-center gap-1 overflow-x-auto py-1 mt-2">
           <router-link
             v-for="item in menuItems"
             :key="item.to"
@@ -23,7 +28,7 @@
             :class="[
               $route.path === item.to
                 ? 'bg-red-600 text-white shadow-md'
-                : 'text-gray-600 hover:bg-red-50 hover:text-red-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-red-400'
+                : 'text-gray-600 hover:bg-red-50 hover:text-red-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-red-400',
             ]"
           >
             <v-icon :icon="item.icon" size="18"></v-icon>
@@ -32,54 +37,113 @@
         </nav>
 
         <!-- Slot para conteúdo extra (se necessário) -->
-          <div v-if="usuario" class="flex-shrink-0 flex items-center gap-6">
-            <!-- Info do Usuário -->
-            <div class="text-right hidden sm:block">
-              <p class="text-sm font-black text-gray-800 dark:text-gray-200 leading-tight">Bem vindo,</p>
-              <p class="text-xs font-bold text-gray-500 dark:text-gray-400">{{ usuario?.nome }}</p>
-            </div>
-
-            <!-- Menu Dropdown do Perfil -->
-            <v-menu transition="slide-y-transition">
-              <template v-slot:activator="{ props }">
-                <div v-bind="props" class="flex items-center gap-2 cursor-pointer group">
-                  <v-avatar 
-                    image="https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80" 
-                    size="42" 
-                    class="border-2 border-red-500 shadow-md group-hover:scale-105 transition-transform"
-                  ></v-avatar>
-                  <v-icon icon="mdi-chevron-down" size="small" class="text-gray-400 group-hover:text-red-500 transition-colors"></v-icon>
-                </div>
-              </template>
-
-              <v-list class="mt-2 rounded-xl border-0 shadow-2xl dark:bg-gray-800 min-w-[180px] pa-2">
-                <v-list-item class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700" to="/perfil">
-                  <template v-slot:prepend>
-                    <v-icon icon="mdi-account-outline" size="18" class="text-gray-400"></v-icon>
-                  </template>
-                  <v-list-item-title class="font-bold text-sm dark:text-gray-200">Meu Perfil</v-list-item-title>
-                </v-list-item>
-
-                <v-list-item class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <template v-slot:prepend>
-                    <v-icon icon="mdi-cog-outline" size="18" class="text-gray-400"></v-icon>
-                  </template>
-                  <v-list-item-title class="font-bold text-sm dark:text-gray-200">Configurações</v-list-item-title>
-                </v-list-item>
-
-                <v-divider class="my-1"></v-divider>
-
-                <v-list-item class="rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20" @click="handleLogout">
-                  <template v-slot:prepend>
-                    <v-icon icon="mdi-logout" size="18" class="text-red-500"></v-icon>
-                  </template>
-                  <v-list-item-title class="font-bold text-sm text-red-500">Sair</v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-menu>
-
-            <slot></slot>
+        <div v-if="usuario" class="flex-shrink-0 flex items-center gap-6 ml-auto mt-3">
+          <!-- Info do Usuário -->
+          <div class="text-right hidden sm:block">
+            <p
+              class="text-xs font-bold text-gray-500 dark:text-gray-400 leading-tight uppercase"
+            >
+              Bem vindo,
+            </p>
+            <p class="text-base font-black text-gray-800 dark:text-gray-200">
+              {{ usuario?.nome }}
+            </p>
           </div>
+
+          <!-- Menu Dropdown do Perfil -->
+          <v-menu transition="slide-y-transition">
+            <template v-slot:activator="{ props }">
+              <div
+                v-bind="props"
+                class="flex items-center gap-2 cursor-pointer group"
+              >
+                <v-avatar
+                  image="https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80"
+                  size="42"
+                  class="border-2 border-red-500 shadow-md group-hover:scale-105 transition-transform relative -top-[1px]"
+                ></v-avatar>
+                <v-icon
+                  icon="mdi-chevron-down"
+                  size="small"
+                  class="text-gray-400 group-hover:text-red-500 transition-colors"
+                ></v-icon>
+              </div>
+            </template>
+
+            <v-list
+              class="mt-2 rounded-xl border-0 shadow-2xl dark:bg-gray-800 min-w-[180px] pa-2"
+            >
+              <!-- Itens de Navegação (Apenas Mobile/Tablet até XL) -->
+              <div class="xl:hidden">
+                <v-list-item
+                  v-for="item in menuItems"
+                  :key="item.to"
+                  :to="item.to"
+                  class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <template v-slot:prepend>
+                    <v-icon :icon="item.icon" size="18" class="text-gray-400"></v-icon>
+                  </template>
+                  <v-list-item-title class="font-bold text-sm dark:text-gray-200">
+                    {{ item.label }}
+                  </v-list-item-title>
+                </v-list-item>
+                <v-divider class="my-1"></v-divider>
+              </div>
+
+              <v-list-item
+                class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700"
+                to="/perfil"
+              >
+                <template v-slot:prepend>
+                  <v-icon
+                    icon="mdi-account-outline"
+                    size="18"
+                    class="text-gray-400"
+                  ></v-icon>
+                </template>
+                <v-list-item-title class="font-bold text-sm dark:text-gray-200"
+                  >Meu Perfil</v-list-item-title
+                >
+              </v-list-item>
+
+              <v-list-item
+                class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <template v-slot:prepend>
+                  <v-icon
+                    icon="mdi-cog-outline"
+                    size="18"
+                    class="text-gray-400"
+                  ></v-icon>
+                </template>
+                <v-list-item-title class="font-bold text-sm dark:text-gray-200"
+                  >Configurações</v-list-item-title
+                >
+              </v-list-item>
+
+              <v-divider class="my-1"></v-divider>
+
+              <v-list-item
+                class="rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                @click="handleLogout"
+              >
+                <template v-slot:prepend>
+                  <v-icon
+                    icon="mdi-logout"
+                    size="18"
+                    class="text-red-500"
+                  ></v-icon>
+                </template>
+                <v-list-item-title class="font-bold text-sm text-red-500"
+                  >Sair</v-list-item-title
+                >
+              </v-list-item>
+            </v-list>
+          </v-menu>
+
+          <slot></slot>
+        </div>
       </div>
     </div>
   </div>
@@ -108,8 +172,16 @@ const funcao = computed(() => usuario.value?.funcao || "");
 const menuGestor = [
   { label: "Turmas", to: "/turmas", icon: "mdi-school-outline" },
   { label: "Criar Turma", to: "/addturmas", icon: "mdi-plus-circle-outline" },
-  { label: "Gestão de UCs e Áreas", to: "/GerAreasComp", icon: "mdi-book-cog-outline" },
-  { label: "Gestão de Professores", to: "/findprofessor", icon: "mdi-account-group-outline" },
+  {
+    label: "Gestão de UCs e Áreas",
+    to: "/GerAreasComp",
+    icon: "mdi-book-cog-outline",
+  },
+  {
+    label: "Gestão de Professores",
+    to: "/findprofessor",
+    icon: "mdi-account-group-outline",
+  },
 ];
 
 // OPP: mesmas opções do gestor, mas na prática o backend filtra
@@ -117,14 +189,34 @@ const menuGestor = [
 const menuOPP = [
   { label: "Turmas", to: "/turmas", icon: "mdi-school-outline" },
   { label: "Criar Turma", to: "/addturmas", icon: "mdi-plus-circle-outline" },
-  { label: "Gestão de UCs e Áreas", to: "/GerAreasComp", icon: "mdi-book-cog-outline" },
-  { label: "Gestão de Professores", to: "/findprofessor", icon: "mdi-account-group-outline" },
+  {
+    label: "Gestão de UCs e Áreas",
+    to: "/GerAreasComp",
+    icon: "mdi-book-cog-outline",
+  },
+  {
+    label: "Gestão de Professores",
+    to: "/findprofessor",
+    icon: "mdi-account-group-outline",
+  },
 ];
 
 const menuProfessor = [
-  { label: "Calendário", to: "/calendarioprof", icon: "mdi-calendar-month-outline" },
-  { label: "Gestão de UCs, Áreas e Certificações", to: "/perfilprofessor", icon: "mdi-certificate-outline" },
-  { label: "Gestão de Disponibilidade", to: "/disponibilidadeprof", icon: "mdi-clock-check-outline" },
+  {
+    label: "Calendário",
+    to: "/calendarioprof",
+    icon: "mdi-calendar-month-outline",
+  },
+  {
+    label: "Gestão de UCs, Áreas e Certificações",
+    to: "/perfilprofessor",
+    icon: "mdi-certificate-outline",
+  },
+  {
+    label: "Gestão de Disponibilidade",
+    to: "/disponibilidadeprof",
+    icon: "mdi-clock-check-outline",
+  },
 ];
 
 // Seleciona os itens do menu com base no perfil

@@ -119,7 +119,7 @@ const handleDesignate = () => {
 <template>
   <Menu />
 
-  <section>
+  <section class="px-4 md:px-10 lg:px-20 xl:px-40 pb-10">
     <v-card class="mx-auto mt-8 max-w-4xl p-6 border-t-6 border-t-red-500">
       <v-card-title class="text-center">
         <span class="text-h5">Lista de Professores</span>

@@ -131,3 +131,107 @@ export async function criarCadastro(dados: {
 export async function buscarCadastro(id: number) {
   return request(`/api/cadastro/${id}`);
 }
+
+// ============================================================
+// ÁREAS — CRUD completo
+// ============================================================
+// Estas funções chamam o backend para gerenciar as áreas.
+// O backend salva tudo no banco de dados MySQL.
+// ============================================================
+
+/**
+ * Lista todas as áreas cadastradas.
+ * Retorna um array com: idArea, nome, status, unidadesCurriculares[]
+ */
+export async function listarAreas() {
+  return request('/api/areas');
+}
+
+/**
+ * Cria uma nova área.
+ * @param dados - Objeto com o campo "nome" (obrigatório)
+ */
+export async function criarArea(dados: { nome: string }) {
+  return request('/api/areas', {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  });
+}
+
+/**
+ * Atualiza uma área existente.
+ * @param id - ID da área que será atualizada
+ * @param dados - Objeto com os campos que serão alterados
+ */
+export async function editarArea(id: number, dados: { nome: string }) {
+  return request(`/api/areas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  });
+}
+
+/**
+ * Exclui uma área.
+ * @param id - ID da área que será excluída
+ */
+export async function excluirArea(id: number) {
+  return request(`/api/areas/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================================
+// COMPETÊNCIAS (Unidades Curriculares) — CRUD completo
+// ============================================================
+// Na tela do usuário chamamos de "Competência",
+// mas no banco o nome da tabela é "unidade_curricular".
+// ============================================================
+
+/**
+ * Lista todas as competências cadastradas.
+ * Retorna um array com: idUC, nome, descricao, idArea, area (objeto)
+ */
+export async function listarCompetencias() {
+  return request('/api/competencias');
+}
+
+/**
+ * Cria uma nova competência.
+ * @param dados - Objeto com: nome, descricao, idArea
+ */
+export async function criarCompetencia(dados: {
+  nome: string;
+  descricao?: string;
+  idArea: number;
+}) {
+  return request('/api/competencias', {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  });
+}
+
+/**
+ * Atualiza uma competência existente.
+ * @param id - ID da competência (idUC)
+ * @param dados - Campos que serão alterados
+ */
+export async function editarCompetencia(id: number, dados: {
+  nome?: string;
+  descricao?: string;
+  idArea?: number;
+}) {
+  return request(`/api/competencias/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  });
+}
+
+/**
+ * Exclui uma competência.
+ * @param id - ID da competência (idUC)
+ */
+export async function excluirCompetencia(id: number) {
+  return request(`/api/competencias/${id}`, {
+    method: 'DELETE',
+  });
+}

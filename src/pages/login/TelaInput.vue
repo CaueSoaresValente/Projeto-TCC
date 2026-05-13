@@ -1,16 +1,12 @@
 <script setup>
 import LoginMobile from "./loginMobile.vue";
 import Menu from "@/components/Menu.vue";
-
-
-
 </script>
 
 <template>
   <div>
-    <header class="flex">
-    
-      <Menu />
+    <header class="flex shadow-md mb-12 bg-white dark:bg-[#121212]">
+      <Menu class="!shadow-none !mb-0" />
 
       <div class="w-full">
         <div class="flex bg-red-600">
@@ -18,8 +14,16 @@ import Menu from "@/components/Menu.vue";
         </div>
         <nav class="bg-white flex justify-end me-25 dark:bg-[#121212]">
           <ul class="flex gap-10 items-center h-17">
-            <li class="hidden md:flex font-bold relative -bottom-2">Login</li>
-            <li class="hidden md:flex font-bold relative -bottom-2">
+            <li
+              class="hidden md:flex font-bold relative -bottom-2"
+              @click="$router.push('/login')"
+            >
+              Login
+            </li>
+            <li
+              class="hidden md:flex font-bold relative -bottom-2"
+              @click="$router.push('/cadastro')"
+            >
               Cadastre-se
             </li>
           </ul>
@@ -31,7 +35,6 @@ import Menu from "@/components/Menu.vue";
       <div class="md:flex justify-center">
         <img src="../../assets/imgmulher.png" class="hidden md:flex h-170" />
         <div class="h-150 flex flex-col justify-center gap-3">
-        
           <LoginMobile />
 
           <span class="font-bold hidden md:flex text-6xl">Bem-vindo, </span>
@@ -42,19 +45,19 @@ import Menu from "@/components/Menu.vue";
             class="text-center md:text-left text-gray-700 dark:text-gray-300 text-base md:text-lg leading-relaxed hidden md:block"
           >
             Faça
-            <a
-              href="#"
+            <router-link
+              to="/login"
               class="text-red-600 font-semibold hover:underline decoration-2 underline-offset-4 mx-1 transition-all"
             >
               login
-            </a>
+            </router-link>
             ou
-            <a
-              href="#"
+            <router-link
+              to="/cadastro"
               class="text-red-600 font-semibold hover:underline decoration-2 underline-offset-4 mx-1 transition-all"
             >
               cadastre-se
-            </a>
+            </router-link>
             para obter acesso à página.
           </p>
         </div>
@@ -70,7 +73,8 @@ li {
   transition: 400ms ease-in-out;
 }
 
-html, body {
+html,
+body {
   overflow-x: hidden !important;
 }
 

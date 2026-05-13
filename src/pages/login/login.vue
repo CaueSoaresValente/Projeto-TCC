@@ -117,36 +117,61 @@ async function handleRecovery() {
 </script>
 
 <template>
-
   <Menu />
 
-  <div class="flex items-center justify-center ">
-
-    <div class="flex flex-col space-y-3 bg-gray-100 p-8 dark:bg-[#121212] w-150 rounded-lg shadow-lg h-auto m-5">
+  <div class="flex items-center justify-center">
+    <div
+      class="flex flex-col space-y-3 bg-gray-100 p-8 dark:bg-[#121212] w-150 rounded-lg shadow-lg h-auto m-5"
+    >
       <h2 class="text-center font-bold text-2xl">Bem-vindo</h2>
 
       <!-- Mensagem de erro do login -->
-      <v-alert v-if="loginError" type="error" variant="tonal" closable @click:close="loginError = ''">
+      <v-alert
+        v-if="loginError"
+        type="error"
+        variant="tonal"
+        closable
+        @click:close="loginError = ''"
+      >
         {{ loginError }}
       </v-alert>
 
       <form @submit.prevent="submit">
-        <v-text-field v-model="state.email" :error-messages="v$.email.$errors.map((e) => e.$message)" label="E-mail"
-          required @blur="v$.email.$touch()" @input="v$.email.$touch()" />
+        <v-text-field
+          v-model="state.email"
+          :error-messages="v$.email.$errors.map((e) => e.$message)"
+          label="E-mail"
+          required
+          @blur="v$.email.$touch()"
+          @input="v$.email.$touch()"
+        />
 
-        <v-text-field v-model="state.password" :error-messages="v$.password.$errors.map((e) => e.$message)"
-          label="Senha" type="password" required @blur="v$.password.$touch()" @input="v$.password.$touch()" />
+        <v-text-field
+          v-model="state.password"
+          :error-messages="v$.password.$errors.map((e) => e.$message)"
+          label="Senha"
+          type="password"
+          required
+          @blur="v$.password.$touch()"
+          @input="v$.password.$touch()"
+        />
 
-        <v-btn type="submit" class="mt-4 me-4 bg-red-500 text-white" :loading="loginLoading">
+        <v-btn
+          type="submit"
+          class="mt-4 me-4 bg-red-500 text-white"
+          :loading="loginLoading"
+        >
           Entrar
         </v-btn>
 
-        <v-btn @click="clear" class="mt-4">
-          Limpar
-        </v-btn>
+        <v-btn @click="clear" class="mt-4"> Limpar </v-btn>
 
         <div class="mt-4 text-right">
-          <a href="#" class="text-sm text-red-600 hover:underline" @click.prevent="recoveryDialog = true">
+          <a
+            href="#"
+            class="text-sm text-red-600 hover:underline"
+            @click.prevent="recoveryDialog = true"
+          >
             Esqueceu a senha?
           </a>
         </div>
@@ -154,7 +179,10 @@ async function handleRecovery() {
 
       <p class="text-center">
         Não tem conta?
-        <router-link to="/cadastro" class="text-red-600 font-semibold hover:underline">
+        <router-link
+          to="/cadastro"
+          class="text-red-600 font-semibold hover:underline"
+        >
           Cadastre-se
         </router-link>
       </p>
@@ -165,12 +193,26 @@ async function handleRecovery() {
         <v-card-title class="text-h5">Recuperar Senha</v-card-title>
         <v-card-text>
           Insira seu e-mail para receber um link de recuperação.
-          <v-text-field v-model="recoveryEmail" label="E-mail" type="email" class="mt-4" required></v-text-field>
+          <v-text-field
+            v-model="recoveryEmail"
+            label="E-mail"
+            type="email"
+            class="mt-4"
+            required
+          ></v-text-field>
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="gray" variant="elevated" @click="recoveryDialog = false">Cancelar</v-btn>
-          <v-btn color="red-darken-1" variant="elevated" @click="handleRecovery" :loading="recoveryLoading" class="bg-red-600 text-white">
+          <v-btn color="gray" variant="elevated" @click="recoveryDialog = false"
+            >Cancelar</v-btn
+          >
+          <v-btn
+            color="red-darken-1"
+            variant="elevated"
+            @click="handleRecovery"
+            :loading="recoveryLoading"
+            class="bg-red-600 text-white"
+          >
             Enviar
           </v-btn>
         </v-card-actions>
