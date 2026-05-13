@@ -10,7 +10,6 @@ const user = ref({
 // Itens do menu dropdown do avatar (Padronizado)
 const items = ref([
   { title: "Meu Perfil", icon: "mdi-account-outline" },
-  { title: "Configurações", icon: "mdi-cog-outline" },
   { title: "Sair", icon: "mdi-logout" },
 ]);
 

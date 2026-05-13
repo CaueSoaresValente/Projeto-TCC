@@ -93,7 +93,7 @@
 
               <v-list-item
                 class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700"
-                to="/perfil"
+                :to="funcao === 'professor' ? '/perfilprofessor' : '/perfil'"
               >
                 <template v-slot:prepend>
                   <v-icon
@@ -107,20 +107,7 @@
                 >
               </v-list-item>
 
-              <v-list-item
-                class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                <template v-slot:prepend>
-                  <v-icon
-                    icon="mdi-cog-outline"
-                    size="18"
-                    class="text-gray-400"
-                  ></v-icon>
-                </template>
-                <v-list-item-title class="font-bold text-sm dark:text-gray-200"
-                  >Configurações</v-list-item-title
-                >
-              </v-list-item>
+
 
               <v-divider class="my-1"></v-divider>
 

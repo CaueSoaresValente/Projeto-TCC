@@ -17,7 +17,6 @@ const user = ref({
 // Itens do menu dropdown do avatar (com ícones de volta para ficar premium!)
 const items = ref([
   { title: "Meu Perfil", icon: "mdi-account-outline" },
-  { title: "Configurações", icon: "mdi-cog-outline" },
   { title: "Sair", icon: "mdi-logout" },
 ]);
 

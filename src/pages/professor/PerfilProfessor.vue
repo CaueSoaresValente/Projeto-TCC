@@ -12,7 +12,6 @@ const user = ref({
 // Itens do menu dropdown do avatar (Padronizado)
 const items = ref([
   { title: "Meu Perfil", icon: "mdi-account-outline" },
-  { title: "Configurações", icon: "mdi-cog-outline" },
   { title: "Sair", icon: "mdi-logout" },
 ]);
 
@@ -688,6 +687,7 @@ watch(dialogAddCertificacao, (val) => {
             label="Nome da Unidade Curricular"
             variant="outlined"
             hide-details
+            readonly
           ></v-text-field>
           <div class="mt-2">
             <div class="flex justify-between items-center mb-1">

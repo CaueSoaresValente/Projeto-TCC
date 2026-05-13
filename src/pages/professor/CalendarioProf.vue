@@ -17,7 +17,6 @@ const user = ref({
 // Itens do menu dropdown do avatar (Padronizado)
 const items = ref([
   { title: "Meu Perfil", icon: "mdi-account-outline" },
-  { title: "Configurações", icon: "mdi-cog-outline" },
   { title: "Sair", icon: "mdi-logout" },
 ]);
 
@@ -51,6 +50,13 @@ const tituloMesSolo = computed(() => {
   return nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1);
 });
 
+// --- DADOS DAS AULAS ---
+const todasAsAulas = ref([
+  { dia: 10, mes: 4, ano: 2026, materia: "Banco de Dados", turma: "TDS-CPTM", periodo: "M1", professor: "Claudio Matarrazo", cargo: "OPP que te designou" },
+  { dia: 15, mes: 4, ano: 2026, materia: "Power BI", turma: "TDS-CPTM", periodo: "M1", professor: "Claudio Matarrazo", cargo: "OPP que te designou" },
+  { dia: 22, mes: 4, ano: 2026, materia: "Android/Kotlin", turma: "TDS-CPTM", periodo: "T1", professor: "Claudio Matarrazo", cargo: "OPP que te designou" },
+]);
+
 // Função principal que gera a grade de 42 dias
 const gradeDias = computed(() => {
   const ano = dataFoco.value.getFullYear();
@@ -70,12 +76,16 @@ const gradeDias = computed(() => {
   for (let i = 1; i <= totalDiasMes; i++) {
     const hoje = new Date();
     const isHoje = i === hoje.getDate() && mes === hoje.getMonth() && ano === hoje.getFullYear();
-    const temAula = (i === 10); 
+    
+    // Procura se tem aula nesse dia
+    const infoAula = todasAsAulas.value.find(a => a.dia === i && a.mes === mes && a.ano === ano);
+    
     dias.push({ 
       num: i, 
       outroMes: false, 
       isHoje,
-      temAula,
+      temAula: !!infoAula,
+      infoAula: infoAula || null,
       dataCompleta: new Date(ano, mes, i)
     });
   }
@@ -88,6 +98,16 @@ const gradeDias = computed(() => {
     });
   }
   return dias;
+});
+
+// Computed para filtrar apenas as aulas futuras (Próximas Aulas)
+const proximasAulas = computed(() => {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  
+  return todasAsAulas.value
+    .map(a => ({ ...a, dataCompleta: new Date(a.ano, a.mes, a.dia) }))
+    .filter(a => a.dataCompleta >= hoje)
 });
 
 // Funções de Navegação
@@ -114,15 +134,6 @@ const anoSelecionado = computed({
   }
 });
 
-// Detalhes da aula
-const aulaDetalhe = {
-  data: "Aula Programada",
-  materia: "Power BI",
-  turma: "TDS-CPTM",
-  periodo: "M1",
-  professor: "Claudio Matarrazo",
-  cargo: "OPP que te designou"
-};
 </script>
 
 <template>
@@ -186,12 +197,12 @@ const aulaDetalhe = {
                           weekday: 'long', day: 'numeric', month: 'short'
                         })
                         }}</p>
-                      <p class="text-sm font-black text-gray-800">{{ aulaDetalhe.materia }}</p>
-                      <p class="text-xs font-bold text-gray-600">Turma: <span class="text-black">{{ aulaDetalhe.turma }}</span></p>
-                      <p class="text-xs font-bold text-gray-600">Periodo: <span class="text-black">{{ aulaDetalhe.periodo }}</span></p>
+                      <p class="text-sm font-black text-gray-800">{{ dia.infoAula.materia }}</p>
+                      <p class="text-xs font-bold text-gray-600">Turma: <span class="text-black">{{ dia.infoAula.turma }}</span></p>
+                      <p class="text-xs font-bold text-gray-600">Periodo: <span class="text-black">{{ dia.infoAula.periodo }}</span></p>
                       <hr class="my-2 border-gray-100">
-                      <p class="text-xs font-bold text-gray-800">{{ aulaDetalhe.professor }}</p>
-                      <p class="text-[10px] text-gray-400">{{ aulaDetalhe.cargo }}</p>
+                      <p class="text-xs font-bold text-gray-800">{{ dia.infoAula.professor }}</p>
+                      <p class="text-[10px] text-gray-400">{{ dia.infoAula.cargo }}</p>
                     </div>
                   </v-card>
                 </v-menu>
@@ -209,14 +220,24 @@ const aulaDetalhe = {
             </div>
             <div class="flex-grow">
               <p class="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">PRÓXIMAS AULAS</p>
-              <v-card variant="flat" class="bg-green-100 dark:bg-green-900/30 rounded-xl p-4 border-l-4 border-green-500">
-                <div class="space-y-1">
-                  <p class="text-xs font-bold text-gray-600 dark:text-gray-300">quinta-feira, 10 de mar</p>
-                  <p class="text-lg font-black text-gray-900 dark:text-white">{{ aulaDetalhe.materia }}</p>
-                  <p class="text-sm font-bold text-gray-700 dark:text-gray-200">Turma: {{ aulaDetalhe.turma }}</p>
-                  <p class="text-sm font-bold text-gray-700 dark:text-gray-200">Periodo: {{ aulaDetalhe.periodo }}</p>
-                </div>
-              </v-card>
+              
+              <div v-if="proximasAulas.length > 0" class="space-y-3">
+                <v-card v-for="(aula, i) in proximasAulas" :key="i" variant="flat" 
+                  class="bg-green-100 dark:bg-green-900/30 rounded-xl p-4 border-l-4 border-green-500">
+                  <div class="space-y-1">
+                    <p class="text-xs font-bold text-gray-600 dark:text-gray-300">
+                      {{ aula.dataCompleta.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short' }) }}
+                    </p>
+                    <p class="text-lg font-black text-gray-900 dark:text-white">{{ aula.materia }}</p>
+                    <p class="text-sm font-bold text-gray-700 dark:text-gray-200">Turma: {{ aula.turma }}</p>
+                    <p class="text-sm font-bold text-gray-700 dark:text-gray-200">Periodo: {{ aula.periodo }}</p>
+                  </div>
+                </v-card>
+              </div>
+
+              <v-alert v-else type="info" variant="tonal" class="rounded-xl">
+                Nenhuma aula programada.
+              </v-alert>
             </div>
             <div class="mt-10 self-end">
               <v-menu open-on-hover location="top" offset="10">

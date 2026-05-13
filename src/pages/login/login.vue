@@ -71,7 +71,7 @@ async function submit() {
     if (funcao === "gestor" || funcao === "opp") {
       router.push("/turmas");
     } else if (funcao === "professor") {
-      router.push("/perfilprofessor");
+      router.push("/calendarioprof");
     } else {
       router.push("/turmas");
     }
