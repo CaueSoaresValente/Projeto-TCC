@@ -1,161 +1,363 @@
 <script setup>
-import { ref, computed } from "vue";
+// ============================================================
+// DisponibilidadeProf.vue
+// ============================================================
+// Esta página permite que o professor marque os dias e
+// períodos em que está disponível para dar aula.
+//
+// COMO FUNCIONA:
+// 1. Ao abrir, buscamos no banco os períodos já salvos
+// 2. O professor clica nos períodos para marcar/desmarcar
+//    (pode marcar VÁRIOS períodos no mesmo dia!)
+// 3. Ao clicar "Salvar", enviamos tudo para o backend
+//    de uma vez via PUT /api/professor/:id/disponibilidade
+// ============================================================
+
+import { ref, computed, onMounted } from "vue";
 import { useTheme } from "vuetify";
 import Menu from "@/components/Menu.vue";
+import { getUsuarioLogado } from "@/services/api";
 
 const theme = useTheme();
-
-// Detecta se o tema atual é dark
 const isDark = computed(() => theme.global.current.value.dark);
 
-// Dados do usuário
-const user = ref({
-  name: "Caue Soares",
-  foto: "https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80",
-});
+// ID do professor (buscamos via API ao montar)
+const idProfessor = ref(null);
 
-// Itens do menu dropdown do avatar (com ícones de volta para ficar premium!)
-const items = ref([
-  { title: "Meu Perfil", icon: "mdi-account-outline" },
-  { title: "Sair", icon: "mdi-logout" },
-]);
+// Estado de carregamento e salvamento
+const carregando = ref(true);
+const salvando = ref(false);
 
-// Configuração dos dias e períodos
+// Snackbar para feedback bonito
+const snackbar = ref({ show: false, text: "", color: "success" });
+const mostrarNotificacao = (text, color = "success") => {
+  snackbar.value = { show: true, text, color };
+};
+
+// =============================================
+// CONFIGURAÇÃO DOS DIAS E PERÍODOS
+// =============================================
 const diasDaSemana = [
   { label: "Segunda", value: "segunda" },
-  { label: "Terça", value: "terca" },
-  { label: "Quarta", value: "quarta" },
-  { label: "Quinta", value: "quinta" },
-  { label: "Sexta", value: "sexta" },
-  { label: "Sábado", value: "sabado" },
+  { label: "Terça",   value: "terca"   },
+  { label: "Quarta",  value: "quarta"  },
+  { label: "Quinta",  value: "quinta"  },
+  { label: "Sexta",   value: "sexta"   },
+  { label: "Sábado",  value: "sabado"  },
 ];
 
 const periodos = [
-  { label: "Manhã", value: "manha", icon: "mdi-weather-sunny", color: "#F59E0B" },
+  { label: "Manhã", value: "manha", icon: "mdi-weather-sunny",  color: "#F59E0B" },
   { label: "Tarde", value: "tarde", icon: "mdi-weather-sunset", color: "#3B82F6" },
-  { label: "Noite", value: "noite", icon: "mdi-weather-night", color: "#6366F1" },
-  { label: "Integral", value: "integral", icon: "mdi-calendar-clock", color: "#10B981" },
+  { label: "Noite", value: "noite", icon: "mdi-weather-night",  color: "#6366F1" },
 ];
 
-// Estado reativo para os períodos selecionados
-const selectedPeriodo = ref({});
+// =============================================
+// ESTADO REATIVO
+// =============================================
+// selectedPeriodos é um objeto onde cada chave é um dia
+// e o valor é um ARRAY de períodos selecionados.
+//
+// Exemplo:
+//   {
+//     segunda: ["manha", "tarde"],  ← Professor tem Manhã E Tarde na Segunda
+//     sexta:   ["noite"],
+//     terca:   [],                  ← Sem disponibilidade na Terça
+//   }
+const selectedPeriodos = ref({
+  segunda: [],
+  terca:   [],
+  quarta:  [],
+  quinta:  [],
+  sexta:   [],
+  sabado:  [],
+});
 
-// Funções de controle
+// =============================================
+// FUNÇÕES DE CONTROLE DE SELEÇÃO
+// =============================================
+
+// Verifica se um período está marcado em um dia
+const isPeriodoSelecionado = (dia, periodo) => {
+  return selectedPeriodos.value[dia]?.includes(periodo) ?? false;
+};
+
+// Marca ou desmarca um período (toggle)
+// Se já estava marcado → remove. Se não estava → adiciona.
 const togglePeriodo = (dia, periodo) => {
-  selectedPeriodo.value[dia] = periodo;
+  const lista = selectedPeriodos.value[dia];
+  const index = lista.indexOf(periodo);
+
+  if (index === -1) {
+    // Não existia → adiciona
+    lista.push(periodo);
+  } else {
+    // Já existia → remove
+    lista.splice(index, 1);
+  }
 };
 
-const removerPeriodo = (dia) => {
-  selectedPeriodo.value[dia] = null;
+// Conta quantos períodos estão marcados em um dia
+const contarPeriodos = (dia) => {
+  return selectedPeriodos.value[dia]?.length ?? 0;
 };
 
-const getPeriodoInfo = (val) => periodos.find(p => p.value === val);
+// =============================================
+// INTEGRAÇÃO COM A API
+// =============================================
+
+// Busca as disponibilidades salvas no banco e preenche o estado local
+const carregarDisponibilidades = async (professorId) => {
+  try {
+    const response = await fetch(`http://localhost:3001/api/professor/${professorId}/disponibilidade`);
+    if (!response.ok) return;
+
+    const dados = await response.json();
+
+    // Limpa o estado atual antes de preencher
+    for (const dia of diasDaSemana) {
+      selectedPeriodos.value[dia.value] = [];
+    }
+
+    // Preenche com o que veio do banco
+    // Cada item tem { diaSemana: "segunda", periodo: "manha", ... }
+    for (const item of dados) {
+      if (selectedPeriodos.value[item.diaSemana] !== undefined) {
+        selectedPeriodos.value[item.diaSemana].push(item.periodo);
+      }
+    }
+  } catch (e) {
+    console.error("Erro ao carregar disponibilidades:", e);
+  }
+};
+
+// Salva toda a semana de uma vez no banco
+// Envia um objeto { disponibilidades: { segunda: ["manha"], ... } }
+const salvarDisponibilidades = async () => {
+  if (!idProfessor.value) {
+    mostrarNotificacao("Erro: professor não identificado.", "error");
+    return;
+  }
+
+  salvando.value = true;
+  try {
+    const response = await fetch(
+      `http://localhost:3001/api/professor/${idProfessor.value}/disponibilidade`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disponibilidades: selectedPeriodos.value }),
+      }
+    );
+
+    if (!response.ok) {
+      const erro = await response.json();
+      throw new Error(erro.message || "Erro ao salvar");
+    }
+
+    mostrarNotificacao("Disponibilidade salva com sucesso! ✓");
+  } catch (e) {
+    mostrarNotificacao(e.message, "error");
+  } finally {
+    salvando.value = false;
+  }
+};
+
+// =============================================
+// INICIALIZAÇÃO
+// =============================================
+onMounted(async () => {
+  try {
+    const usuario = getUsuarioLogado();
+    if (!usuario) return;
+
+    // Busca o professor pelo idCadastro do login
+    const response = await fetch(
+      `http://localhost:3001/api/professor/cadastro/${usuario.idUsuario}`
+    );
+
+    if (response.ok) {
+      const professor = await response.json();
+      idProfessor.value = professor.idProfessor;
+      await carregarDisponibilidades(professor.idProfessor);
+    }
+  } catch (e) {
+    console.error("Erro ao inicializar:", e);
+  } finally {
+    carregando.value = false;
+  }
+});
 </script>
 
 <template>
   <Menu />
 
   <div class="mx-5 md:mx-20! lg:mx-32! mt-12 pb-24">
-    <!-- Header Page -->
-    <div class="mb-10 text-center sm:text-left px-2">
-      <h1 class="text-4xl font-black text-gray-900 dark:text-white tracking-tight">Disponibilidade Semanal</h1>
-      <p class="text-gray-500 dark:text-gray-400 mt-3 font-medium">Selecione os períodos em que você estará disponível para lecionar.</p>
+
+    <!-- Header da Página -->
+    <div class="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4 px-2">
+      <div>
+        <h1 class="text-4xl font-black text-gray-900 dark:text-white tracking-tight">
+          Disponibilidade Semanal
+        </h1>
+        <p class="text-gray-500 dark:text-gray-400 mt-3 font-medium">
+          Selecione os períodos em que você estará disponível para lecionar. Você pode marcar
+          <span class="text-gray-800 dark:text-gray-200 font-bold">vários períodos</span> no mesmo dia.
+        </p>
+      </div>
+
+      <!-- Botão Salvar -->
+      <v-btn
+        color="red-darken-2"
+        variant="elevated"
+        size="large"
+        :loading="salvando"
+        :disabled="carregando"
+        prepend-icon="mdi-content-save-outline"
+        class="font-bold rounded-xl px-8 shrink-0"
+        @click="salvarDisponibilidades"
+      >
+        Salvar Disponibilidade
+      </v-btn>
     </div>
-    
-    <!-- Grid de Dias -->
-    <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      <div v-for="dia in diasDaSemana" :key="dia.value" class="group">
-        <div class="flex items-center justify-between mb-4 px-2">
+
+    <!-- Skeleton de carregamento -->
+    <div v-if="carregando" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <v-skeleton-loader
+        v-for="i in 6"
+        :key="i"
+        type="card"
+        class="rounded-2xl"
+        height="240"
+      />
+    </div>
+
+    <!-- Grid de Dias da Semana -->
+    <div v-else class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div
+        v-for="dia in diasDaSemana"
+        :key="dia.value"
+        class="group"
+      >
+        <!-- Label do dia + badge de contagem -->
+        <div class="flex items-center justify-between mb-3 px-1">
           <span class="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest group-hover:text-red-500 transition-colors">
             {{ dia.label }}
           </span>
-          <v-icon v-if="selectedPeriodo[dia.value]" icon="mdi-check-decagram" color="green" size="18"></v-icon>
+          <!-- Badge mostrando quantos períodos estão selecionados -->
+          <span
+            v-if="contarPeriodos(dia.value) > 0"
+            class="text-xs font-black bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center"
+          >
+            {{ contarPeriodos(dia.value) }}
+          </span>
         </div>
-        
+
+        <!-- Card do Dia -->
         <v-card
           variant="flat"
-          class="rounded-2xl flex flex-col border-2 transition-all duration-500 overflow-hidden shadow-sm hover:shadow-md"
-          :class="selectedPeriodo[dia.value] 
-            ? 'border-gray-900 dark:border-white bg-white dark:bg-[#1E1E1E]' 
+          class="rounded-2xl border-2 transition-all duration-300 overflow-hidden"
+          :class="contarPeriodos(dia.value) > 0
+            ? 'border-gray-900 dark:border-white shadow-md bg-white dark:bg-[#1E1E1E]'
             : 'border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30'"
-          height="340"
         >
-          <!-- Estado Selecionado -->
-          <div v-if="selectedPeriodo[dia.value]" class="h-full flex flex-col items-center justify-between p-6 animate-fade-in">
-            <div 
-              class="w-full flex-1 flex flex-col items-center justify-center rounded-2xl transition-colors p-4"
-              :class="isDark ? 'bg-' + selectedPeriodo[dia.value] + '-dark' : 'bg-' + selectedPeriodo[dia.value] + '-soft'"
+          <div class="p-4 flex flex-col gap-2">
+
+            <!-- Ícone quando não tem nada selecionado -->
+            <div
+              v-if="contarPeriodos(dia.value) === 0"
+              class="flex flex-col items-center justify-center py-4 opacity-30 group-hover:opacity-50 transition-opacity"
             >
-              <div class="p-5 rounded-full bg-white dark:bg-gray-700 shadow-md mb-6">
-                <v-icon 
-                  :icon="getPeriodoInfo(selectedPeriodo[dia.value]).icon" 
-                  size="36" 
-                  :color="getPeriodoInfo(selectedPeriodo[dia.value]).color"
-                ></v-icon>
-              </div>
-              <span class="text-base font-black text-gray-900 dark:text-white uppercase tracking-widest">
-                {{ getPeriodoInfo(selectedPeriodo[dia.value]).label }}
-              </span>
+              <v-icon icon="mdi-calendar-blank-outline" size="32" color="grey" />
+              <p class="text-[10px] font-black text-center mt-2 uppercase tracking-tight text-gray-400">
+                Nenhum período
+              </p>
             </div>
 
-            <v-btn
-              variant="tonal"
-              color="red"
-              block
-              class="mt-6 rounded-xl font-bold text-xs h-12"
-              prepend-icon="mdi-sync"
-              @click="removerPeriodo(dia.value)"
+            <!-- Botões de cada período -->
+            <button
+              v-for="p in periodos"
+              :key="p.value"
+              @click="togglePeriodo(dia.value, p.value)"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all duration-200 cursor-pointer"
+              :class="isPeriodoSelecionado(dia.value, p.value)
+                ? 'border-transparent text-white font-bold shadow-md scale-[1.02]'
+                : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-500 hover:scale-[1.01]'"
+              :style="isPeriodoSelecionado(dia.value, p.value)
+                ? { backgroundColor: p.color }
+                : {}"
             >
-              Trocar Período
-            </v-btn>
-          </div>
-
-          <!-- Estado de Seleção -->
-          <div v-else class="h-full flex flex-col p-5 pb-8">
-            <div class="flex-1 flex flex-col items-center justify-center opacity-30 group-hover:opacity-60 transition-opacity mb-6">
-              <v-icon icon="mdi-calendar-clock" size="44" color="grey-darken-1" class="dark:text-gray-400"></v-icon>
-              <p class="text-[10px] font-black text-center mt-3 uppercase tracking-tighter dark:text-gray-400">Escolher Horário</p>
-            </div>
-
-            <div class="flex flex-col gap-2 mb-2">
-              <button
-                v-for="p in periodos"
-                :key="p.value"
-                @click="togglePeriodo(dia.value, p.value)"
-                class="w-full flex items-center gap-4 px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-900 dark:hover:border-white hover:bg-gray-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all duration-300 group/btn"
+              <!-- Ícone do período -->
+              <v-icon
+                :icon="p.icon"
+                size="16"
+                :color="isPeriodoSelecionado(dia.value, p.value) ? 'white' : p.color"
+              />
+              <!-- Label do período -->
+              <span
+                class="text-[11px] font-bold uppercase tracking-tight"
+                :class="isPeriodoSelecionado(dia.value, p.value)
+                  ? 'text-white'
+                  : 'text-gray-600 dark:text-gray-300'"
               >
-                <v-icon :icon="p.icon" size="18" class="group-hover/btn:text-white dark:group-hover/btn:text-black" :style="{ color: p.color }"></v-icon>
-                <span class="text-[12px] font-bold uppercase tracking-tight dark:text-gray-300 group-hover/btn:text-white dark:group-hover/btn:text-black">{{ p.label }}</span>
-              </button>
-            </div>
+                {{ p.label }}
+              </span>
+              <!-- Check quando selecionado -->
+              <v-icon
+                v-if="isPeriodoSelecionado(dia.value, p.value)"
+                icon="mdi-check"
+                size="14"
+                color="white"
+                class="ml-auto"
+              />
+            </button>
+
           </div>
         </v-card>
       </div>
     </div>
+
+    <!-- Legenda explicativa -->
+    <div class="mt-10 flex flex-wrap gap-4 justify-center text-xs text-gray-400 font-medium">
+      <span class="flex items-center gap-1.5">
+        <span class="w-3 h-3 rounded-full" style="background-color:#F59E0B"></span> Manhã (6h–12h)
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-3 h-3 rounded-full" style="background-color:#3B82F6"></span> Tarde (12h–18h)
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-3 h-3 rounded-full" style="background-color:#6366F1"></span> Noite (18h–22h)
+      </span>
+    </div>
   </div>
+
+  <!-- SNACKBAR DE NOTIFICAÇÃO -->
+  <v-snackbar
+    v-model="snackbar.show"
+    :color="snackbar.color"
+    :timeout="4000"
+    location="top right"
+    elevation="24"
+    class="mt-12"
+  >
+    <div class="flex items-center gap-3">
+      <v-icon
+        color="white"
+        :icon="snackbar.color === 'success' ? 'mdi-check-circle' : 'mdi-alert-circle'"
+      />
+      <span class="font-medium text-white">{{ snackbar.text }}</span>
+    </div>
+    <template v-slot:actions>
+      <v-btn color="white" variant="text" icon="mdi-close" @click="snackbar.show = false" />
+    </template>
+  </v-snackbar>
 </template>
 
 <style scoped>
-.animate-fade-in {
-  animation: fadeIn 0.4s ease-out;
+/* Animação suave ao marcar/desmarcar */
+button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Modo Claro */
-.bg-manha-soft { background-color: #FFFBEB !important; }
-.bg-tarde-soft { background-color: #EFF6FF !important; }
-.bg-noite-soft { background-color: #EEF2FF !important; }
-.bg-integral-soft { background-color: #ECFDF5 !important; }
-
-/* Modo Escuro (Classes específicas controladas pelo script) */
-.bg-manha-dark { background-color: rgba(245, 158, 11, 0.2) !important; border: 1px solid rgba(245, 158, 11, 0.4); }
-.bg-tarde-dark { background-color: rgba(59, 130, 246, 0.2) !important; border: 1px solid rgba(59, 130, 246, 0.4); }
-.bg-noite-dark { background-color: rgba(99, 102, 241, 0.2) !important; border: 1px solid rgba(99, 102, 241, 0.4); }
-.bg-integral-dark { background-color: rgba(16, 185, 129, 0.2) !important; border: 1px solid rgba(16, 185, 129, 0.4); }
 
 .v-card {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

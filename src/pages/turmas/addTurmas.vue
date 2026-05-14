@@ -56,48 +56,8 @@ const turmas = [
     siglas: "N02",
     areas: ["Redes", "Infra"],
   },
-  {
-    label: "CPTMTDS02",
-    value: "cptmtds02",
-    modalidade: "cai",
-    siglas: "INT",
-    areas: ["Elétrica"],
-  },
-  {
-    label: "CPTMTDS01",
-    value: "cptmtds01",
-    modalidade: "tec",
-    siglas: "INT",
-    areas: ["Tecnologia"],
-  },
-  {
-    label: "CPTMTDS04",
-    value: "cptmtds04",
-    modalidade: "tec",
-    siglas: "INT",
-    areas: ["Mobile"],
-  },
-  {
-    label: "CPTMTDS03",
-    value: "cptmtds03",
-    modalidade: "fic",
-    siglas: "INT",
-    areas: ["Gestão"],
-  },
-  {
-    label: "CPTMTDS02",
-    value: "cptmtds02",
-    modalidade: "cai",
-    siglas: "INT",
-    areas: ["Mecânica"],
-  },
-  {
-    label: "CPTMTDS01",
-    value: "cptmtds01",
-    modalidade: "tec",
-    siglas: "INT",
-    areas: ["Design"],
-  },
+  
+
 ];
 
 const selectedAreas = ref([]);

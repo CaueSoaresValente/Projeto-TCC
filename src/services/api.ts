@@ -22,7 +22,10 @@ const USER_KEY = 'usuario';
 // FUNÇÃO BASE — todas as outras usam esta
 // ============================================================
 async function request(url: string, options: RequestInit = {}) {
-  // Pega o token do localStorage (se existir)
+  // Força a porta 3001 do backend
+  const baseUrl = 'http://localhost:3001';
+  const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+  
   const token = localStorage.getItem(TOKEN_KEY);
 
   // Monta os headers padrão
@@ -37,7 +40,7 @@ async function request(url: string, options: RequestInit = {}) {
   }
 
   // Faz a requisição HTTP
-  const response = await fetch(url, {
+  const response = await fetch(fullUrl, {
     ...options,
     headers,
   });
@@ -235,3 +238,182 @@ export async function excluirCompetencia(id: number) {
     method: 'DELETE',
   });
 }
+
+// ============================================================
+// PROFESSOR — Buscar por Cadastro
+// ============================================================
+// Quando o professor faz login, o token tem o idUsuario (cadastro).
+// Precisamos descobrir o idProfessor para usar nas rotas abaixo.
+// ============================================================
+
+/**
+ * Busca o professor pelo ID do cadastro.
+ * Retorna o objeto professor com idProfessor, idCadastro, status.
+ */
+export async function buscarProfessorPorCadastro(idCadastro: number) {
+  return request(`/api/professor/cadastro/${idCadastro}`);
+}
+
+// ============================================================
+// PROFESSOR — ÁREAS DE ATUAÇÃO — CRUD
+// ============================================================
+// Gerencia quais áreas cada professor escolheu.
+// ============================================================
+
+/**
+ * Lista as áreas de atuação de um professor.
+ * Retorna array com: idProfessorArea, idProfessor, idArea, area (objeto)
+ */
+export async function listarAreasProfessor(idProfessor: number) {
+  return request(`/api/professor/${idProfessor}/areas`);
+}
+
+/**
+ * Vincula uma nova área ao professor.
+ * @param idProfessor - ID do professor
+ * @param idArea - ID da área que o professor quer adicionar
+ */
+export async function adicionarAreaProfessor(idProfessor: number, idArea: number) {
+  return request(`/api/professor/${idProfessor}/areas`, {
+    method: 'POST',
+    body: JSON.stringify({ idArea }),
+  });
+}
+
+/**
+ * Atualiza o vínculo de área do professor (troca a área).
+ * @param id - ID do vínculo (idProfessorArea)
+ * @param idArea - Novo ID da área
+ */
+export async function editarAreaProfessor(id: number, idArea: number) {
+  return request(`/api/professor/areas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ idArea }),
+  });
+}
+
+/**
+ * Remove o vínculo de área do professor.
+ * @param id - ID do vínculo (idProfessorArea)
+ */
+export async function excluirAreaProfessor(id: number) {
+  return request(`/api/professor/areas/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================================
+// PROFESSOR — UNIDADES CURRICULARES — CRUD
+// ============================================================
+// Gerencia quais UCs cada professor sabe ministrar,
+// junto com o nível de competência (0 a 100%).
+// ============================================================
+
+/**
+ * Lista as UCs de um professor.
+ * Retorna array com: idProfessorUC, idUC, idProfessor, nivelCompetencia, unidadeCurricular (objeto)
+ */
+export async function listarUCsProfessor(idProfessor: number) {
+  return request(`/api/professor/${idProfessor}/ucs`);
+}
+
+/**
+ * Lista as UCs de uma área específica (para popular o dropdown).
+ * @param idArea - ID da área
+ */
+export async function listarUCsPorArea(idArea: number) {
+  return request(`/api/competencias/area/${idArea}`);
+}
+
+/**
+ * Vincula uma UC ao professor com nível de competência.
+ * @param idProfessor - ID do professor
+ * @param idUC - ID da UC
+ * @param nivelCompetencia - Nível de 0 a 100
+ */
+export async function adicionarUCProfessor(idProfessor: number, idUC: number, nivelCompetencia: number) {
+  return request(`/api/professor/${idProfessor}/ucs`, {
+    method: 'POST',
+    body: JSON.stringify({ idUC, nivelCompetencia }),
+  });
+}
+
+/**
+ * Atualiza o nível de competência de uma UC do professor.
+ * @param id - ID do vínculo (idProfessorUC)
+ * @param nivelCompetencia - Novo nível de 0 a 100
+ */
+export async function editarUCProfessor(id: number, nivelCompetencia: number) {
+  return request(`/api/professor/ucs/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ nivelCompetencia }),
+  });
+}
+
+/**
+ * Remove o vínculo de UC do professor.
+ * @param id - ID do vínculo (idProfessorUC)
+ */
+export async function excluirUCProfessor(id: number) {
+  return request(`/api/professor/ucs/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================================
+// PROFESSOR — CERTIFICAÇÕES — CRUD
+// ============================================================
+// Gerencia as certificações do professor (AWS, Scrum, etc.)
+// ============================================================
+
+/**
+ * Lista as certificações de um professor.
+ */
+export async function listarCertificacoes(idProfessor: number) {
+  return request(`/api/professor/${idProfessor}/certificacoes`);
+}
+
+/**
+ * Cria uma nova certificação.
+ * @param idProfessor - ID do professor
+ * @param dados - Objeto com: nome, instituicao, cargaHoraria, dataObtencao
+ */
+export async function adicionarCertificacao(idProfessor: number, dados: {
+  nome: string;
+  instituicao?: string;
+  cargaHoraria?: string;
+  dataObtencao?: string;
+}) {
+  return request(`/api/professor/${idProfessor}/certificacoes`, {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  });
+}
+
+/**
+ * Atualiza uma certificação existente.
+ * @param id - ID da certificação
+ * @param dados - Campos que serão alterados
+ */
+export async function editarCertificacao(id: number, dados: {
+  nome?: string;
+  instituicao?: string;
+  cargaHoraria?: string;
+  dataObtencao?: string;
+}) {
+  return request(`/api/professor/certificacoes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  });
+}
+
+/**
+ * Exclui uma certificação.
+ * @param id - ID da certificação
+ */
+export async function excluirCertificacao(id: number) {
+  return request(`/api/professor/certificacoes/${id}`, {
+    method: 'DELETE',
+  });
+}
+

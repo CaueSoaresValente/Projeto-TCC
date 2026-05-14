@@ -1,6 +1,17 @@
 <script setup>
 import Menu from "@/components/Menu.vue";
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted } from "vue";
+import {
+  getUsuarioLogado,
+  buscarProfessorPorCadastro,
+  listarAreas,
+  listarAreasProfessor, adicionarAreaProfessor, editarAreaProfessor, excluirAreaProfessor,
+  listarUCsProfessor, listarUCsPorArea, adicionarUCProfessor, editarUCProfessor, excluirUCProfessor,
+  listarCertificacoes, adicionarCertificacao, editarCertificacao, excluirCertificacao,
+} from "@/services/api";
+
+// ID do professor (vem do banco após o login)
+const idProfessor = ref(null);
 
 // Dados do usuário logado
 const user = ref({
@@ -21,74 +32,26 @@ const selecionado = ref("Área de Atuação");
 const searchQuery = ref("");
 
 // =============================================
-// DADOS DA ÁREA DE ATUAÇÃO (mock)
+// DADOS REAIS DO BANCO DE DADOS
 // =============================================
-const dadosAreas = ref([
-  { nome: "Tecnologia"},
-  { nome: "Administração" },
-  { nome: "Informática"},
-]);
-
-const areasDisponiveis = [
-  "Desenvolvimento Web",
-  "Banco de Dados",
-  "Arquitetura de Software",
-  "Ciência de Dados",
-  "Segurança da Informação",
-  "Redes de Computadores",
-  "Engenharia de Software",
-  "Sistemas Operacionais",
-  "Inteligência Artificial",
-  "Mobile",
-];
-
-// =============================================
-// DADOS DAS UNIDADES CURRICULARES (mock)
-// =============================================
-const dadosUnidades = ref([
-  { nome: "Banco de Dados", progresso: 50 },
-  { nome: "Back-end", progresso: 50 },
-  { nome: "Front-end", progresso: 50 },
-  { nome: "Internet das Coisas", progresso: 50 },
-  { nome: "Android/Kotlin", progresso: 50 },
-  { nome: "Projetos", progresso: 50 },
-  { nome: "Power BI", progresso: 50 },
-]);
-
-// Mapeamento de Unidades por Área (pra facilitar a vida do prof)
-const unidadesPorArea = {
-  "Tecnologia": ["Inteligência Artificial", "Internet das Coisas", "Cibersegurança", "Android/Kotlin"],
-  "Informática": ["Banco de Dados", "Back-end", "Front-end", "Redes de Computadores"],
-  "Administração": ["Projetos", "Power BI"]
-};
-
-// Unidades filtradas baseadas na área escolhida
-const unidadesFiltradas = computed(() => {
-  if (!areaSelecionadaFiltro.value) return [];
-  return unidadesPorArea[areaSelecionadaFiltro.value] || [];
-});
-
-// =============================================
-// DADOS DAS CERTIFICAÇÕES (mock)
-// =============================================
-const dadosCertificacoes = ref([
-  { nome: "AWS Cloud Practitioner", instituicao: "Amazon", data: "2024-03-15", cargaHoraria: "40h" },
-  { nome: "Scrum Foundation", instituicao: "CertiProf", data: "2023-11-20", cargaHoraria: "16h" },
-  { nome: "Google Data Analytics", instituicao: "Google", data: "2024-01-10", cargaHoraria: "120h" },
-]);
+const dadosAreas = ref([]);       // áreas que o professor já escolheu
+const areasDisponiveis = ref([]); // todas as áreas do sistema (cadastradas pelo gestor)
+const dadosUnidades = ref([]);    // UCs que o professor já vinculou
+const unidadesFiltradas = ref([]); // UCs filtradas por área (para o dropdown)
+const dadosCertificacoes = ref([]);// certificações do professor
 
 // =============================================
 // FILTROS DE PESQUISA
 // =============================================
 const filteredAreas = computed(() =>
   dadosAreas.value.filter((item) =>
-    item.nome.toLowerCase().includes(searchQuery.value.toLowerCase())
+    (item.area?.nome || '').toLowerCase().includes(searchQuery.value.toLowerCase())
   )
 );
 
 const filteredUnidades = computed(() =>
   dadosUnidades.value.filter((item) =>
-    item.nome.toLowerCase().includes(searchQuery.value.toLowerCase())
+    (item.unidadeCurricular?.nome || '').toLowerCase().includes(searchQuery.value.toLowerCase())
   )
 );
 
@@ -96,7 +59,7 @@ const filteredCertificacoes = computed(() =>
   dadosCertificacoes.value.filter(
     (item) =>
       item.nome.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      item.instituicao.toLowerCase().includes(searchQuery.value.toLowerCase())
+      (item.instituicao || '').toLowerCase().includes(searchQuery.value.toLowerCase())
   )
 );
 
@@ -126,13 +89,13 @@ const areaSelecionadaFiltro = ref(null); // Pra guardar a área no modal de add 
 // =============================================
 // CAMPOS DOS FORMULÁRIOS — ÁREA DE ATUAÇÃO
 // =============================================
-const novaAreaNome = ref("");
+const novaAreaId = ref(null);     // ID da área selecionada no dropdown
 const novoNivelArea = ref(0);
 
 // =============================================
 // CAMPOS DOS FORMULÁRIOS — UNIDADE
 // =============================================
-const novaUnidadeNome = ref("");
+const novaUnidadeId = ref(null);  // ID da UC selecionada no dropdown
 const novoNivelConhecimento = ref(0);
 const novaUnidade = ref({ cargaHorariaTotal: 0 });
 const numModulos = ref(0);
@@ -151,38 +114,88 @@ const novaCertificacaoData = ref("");
 const novaCertificacaoCarga = ref("");
 
 // =============================================
-// FUNÇÕES DE SALVAR
+// FUNÇÕES DE CARREGAR DADOS DO BANCO
 // =============================================
-const salvarArea = () => {
-  if (novaAreaNome.value.trim()) {
-    dadosAreas.value.push({
-      nome: novaAreaNome.value.trim(),
-      nivel: novoNivelArea.value,
-    });
+const carregarAreas = async () => {
+  if (!idProfessor.value) return;
+  try {
+    dadosAreas.value = await listarAreasProfessor(idProfessor.value);
+  } catch (e) { console.error('Erro ao carregar áreas:', e); }
+};
+
+const carregarAreasDisponiveis = async () => {
+  try {
+    areasDisponiveis.value = await listarAreas();
+  } catch (e) { console.error('Erro ao carregar áreas disponíveis:', e); }
+};
+
+const carregarUnidades = async () => {
+  if (!idProfessor.value) return;
+  try {
+    dadosUnidades.value = await listarUCsProfessor(idProfessor.value);
+  } catch (e) { console.error('Erro ao carregar UCs:', e); }
+};
+
+const carregarCertificacoes = async () => {
+  if (!idProfessor.value) return;
+  try {
+    dadosCertificacoes.value = await listarCertificacoes(idProfessor.value);
+  } catch (e) { console.error('Erro ao carregar certificações:', e); }
+};
+
+// =============================================
+// SISTEMA DE NOTIFICAÇÃO (SNACKBAR)
+// =============================================
+const snackbar = ref({
+  show: false,
+  text: "",
+  color: "success",
+});
+
+const mostrarNotificacao = (text, color = "success") => {
+  snackbar.value.text = text;
+  snackbar.value.color = color;
+  snackbar.value.show = true;
+};
+
+// =============================================
+// FUNÇÕES DE SALVAR (chamam o backend)
+// =============================================
+const salvarArea = async () => {
+  try {
+    await adicionarAreaProfessor(idProfessor.value, novaAreaId.value);
+    await carregarAreas();
+    mostrarNotificacao("Área adicionada com sucesso!");
     dialogAddArea.value = false;
+  } catch (e) { 
+    mostrarNotificacao(e.message, "error");
   }
 };
 
-const salvarUnidade = () => {
-  if (novaUnidadeNome.value.trim()) {
-    dadosUnidades.value.push({
-      nome: novaUnidadeNome.value.trim(),
-      progresso: novoNivelConhecimento.value,
-      cargaHorariaTotal: novaUnidade.value.cargaHorariaTotal,
-    });
+const salvarUnidade = async () => {
+  try {
+    await adicionarUCProfessor(idProfessor.value, novaUnidadeId.value, novoNivelConhecimento.value);
+    await carregarUnidades();
+    mostrarNotificacao("Unidade Curricular adicionada com sucesso!");
     dialogAddUnidade.value = false;
+  } catch (e) { 
+    mostrarNotificacao(e.message, "error");
   }
 };
 
-const salvarCertificacao = () => {
-  if (novaCertificacaoNome.value.trim()) {
-    dadosCertificacoes.value.push({
+const salvarCertificacao = async () => {
+  try {
+    await adicionarCertificacao(idProfessor.value, {
       nome: novaCertificacaoNome.value.trim(),
-      instituicao: novaCertificacaoInstituicao.value.trim() || "—",
-      data: novaCertificacaoData.value || "—",
-      cargaHoraria: novaCertificacaoCarga.value.trim() || "0h",
+      instituicao: novaCertificacaoInstituicao.value.trim() || undefined,
+      cargaHoraria: novaCertificacaoCarga.value.trim() || undefined,
+      dataObtencao: novaCertificacaoData.value || undefined,
     });
+    await carregarCertificacoes();
+    mostrarNotificacao("Certificação adicionada com sucesso!");
     dialogAddCertificacao.value = false;
+  } catch (e) { 
+    mostrarNotificacao(e.message, "error");
   }
 };
 
@@ -194,14 +207,16 @@ const abrirEditArea = (item) => {
   dialogEditArea.value = true;
 };
 
-const salvarEdicaoArea = () => {
-  const index = dadosAreas.value.findIndex(
-    (a) => a.nome === areaSelecionada.value.nome
-  );
-  if (index !== -1) {
-    dadosAreas.value[index] = { ...areaSelecionada.value };
+const salvarEdicaoArea = async () => {
+  if (!areaSelecionada.value) return;
+  try {
+    await editarAreaProfessor(areaSelecionada.value.idProfessorArea, areaSelecionada.value.idArea);
+    await carregarAreas();
+    mostrarNotificacao("Área atualizada com sucesso!");
+    dialogEditArea.value = false;
+  } catch (e) { 
+    mostrarNotificacao(e.message, "error");
   }
-  dialogEditArea.value = false;
 };
 
 const abrirEditUnidade = (item) => {
@@ -209,14 +224,16 @@ const abrirEditUnidade = (item) => {
   dialogEditUnidade.value = true;
 };
 
-const salvarEdicaoUnidade = () => {
-  const index = dadosUnidades.value.findIndex(
-    (u) => u.nome === unidadeSelecionada.value.nome
-  );
-  if (index !== -1) {
-    dadosUnidades.value[index] = { ...unidadeSelecionada.value };
+const salvarEdicaoUnidade = async () => {
+  if (!unidadeSelecionada.value) return;
+  try {
+    await editarUCProfessor(unidadeSelecionada.value.idProfessorUC, unidadeSelecionada.value.nivelCompetencia);
+    await carregarUnidades();
+    mostrarNotificacao("Unidade Curricular atualizada com sucesso!");
+    dialogEditUnidade.value = false;
+  } catch (e) { 
+    mostrarNotificacao(e.message, "error");
   }
-  dialogEditUnidade.value = false;
 };
 
 const abrirEditCertificacao = (item) => {
@@ -224,29 +241,40 @@ const abrirEditCertificacao = (item) => {
   dialogEditCertificacao.value = true;
 };
 
-const salvarEdicaoCertificacao = () => {
-  const index = dadosCertificacoes.value.findIndex(
-    (c) => c.nome === certificacaoSelecionada.value.nome
-  );
-  if (index !== -1) {
-    dadosCertificacoes.value[index] = { ...certificacaoSelecionada.value };
+const salvarEdicaoCertificacao = async () => {
+  if (!certificacaoSelecionada.value) return;
+  try {
+    await editarCertificacao(certificacaoSelecionada.value.idCertificacao, {
+      nome: certificacaoSelecionada.value.nome,
+      instituicao: certificacaoSelecionada.value.instituicao,
+      cargaHoraria: certificacaoSelecionada.value.cargaHoraria,
+      dataObtencao: certificacaoSelecionada.value.dataObtencao,
+    });
+    await carregarCertificacoes();
+    mostrarNotificacao("Certificação atualizada com sucesso!");
+    dialogEditCertificacao.value = false;
+  } catch (e) { 
+    mostrarNotificacao(e.message, "error");
   }
-  dialogEditCertificacao.value = false;
 };
 
 // =============================================
-// FUNÇÕES DE DELETAR
+// FUNÇÕES DE DELETAR (chamam o backend)
 // =============================================
 const abrirDeleteArea = (item) => {
   areaSelecionada.value = item;
   dialogDeleteArea.value = true;
 };
 
-const confirmarDeleteArea = () => {
-  dadosAreas.value = dadosAreas.value.filter(
-    (a) => a.nome !== areaSelecionada.value.nome
-  );
-  dialogDeleteArea.value = false;
+const confirmarDeleteArea = async () => {
+  try {
+    await excluirAreaProfessor(areaSelecionada.value.idProfessorArea);
+    await carregarAreas();
+    mostrarNotificacao("Área removida com sucesso!");
+    dialogDeleteArea.value = false;
+  } catch (e) { 
+    mostrarNotificacao(e.message, "error");
+  }
 };
 
 const abrirDeleteUnidade = (item) => {
@@ -254,11 +282,15 @@ const abrirDeleteUnidade = (item) => {
   dialogDeleteUnidade.value = true;
 };
 
-const confirmarDeleteUnidade = () => {
-  dadosUnidades.value = dadosUnidades.value.filter(
-    (u) => u.nome !== unidadeSelecionada.value.nome
-  );
-  dialogDeleteUnidade.value = false;
+const confirmarDeleteUnidade = async () => {
+  try {
+    await excluirUCProfessor(unidadeSelecionada.value.idProfessorUC);
+    await carregarUnidades();
+    mostrarNotificacao("Unidade Curricular removida com sucesso!");
+    dialogDeleteUnidade.value = false;
+  } catch (e) { 
+    mostrarNotificacao(e.message, "error");
+  }
 };
 
 const abrirDeleteCertificacao = (item) => {
@@ -266,37 +298,47 @@ const abrirDeleteCertificacao = (item) => {
   dialogDeleteCertificacao.value = true;
 };
 
-const confirmarDeleteCertificacao = () => {
-  dadosCertificacoes.value = dadosCertificacoes.value.filter(
-    (c) => c.nome !== certificacaoSelecionada.value.nome
-  );
-  dialogDeleteCertificacao.value = false;
+const confirmarDeleteCertificacao = async () => {
+  try {
+    await excluirCertificacao(certificacaoSelecionada.value.idCertificacao);
+    await carregarCertificacoes();
+    mostrarNotificacao("Certificação removida com sucesso!");
+    dialogDeleteCertificacao.value = false;
+  } catch (e) { 
+    mostrarNotificacao(e.message, "error");
+  }
 };
 
 // =============================================
 // WATCHERS (limpa campos ao abrir modais de adição)
 // =============================================
-watch(dialogAddArea, (val) => {
+watch(dialogAddArea, async (val) => {
   if (val) {
-    novaAreaNome.value = "";
+    novaAreaId.value = null;
     novoNivelArea.value = 0;
-  }
-});
-
-watch(dialogAddUnidade, (val) => {
-  if (val) {
-    novaAreaNome.value = "";
-    novoNivelArea.value = 0;
+    // Tenta carregar as áreas de novo para garantir que pegou as novas do gestor
+    await carregarAreasDisponiveis();
+    console.log("Áreas disponíveis carregadas:", areasDisponiveis.value);
   }
 });
 
 watch(dialogAddUnidade, (val) => {
   if (val) {
     areaSelecionadaFiltro.value = null;
-    novaUnidadeNome.value = "";
+    novaUnidadeId.value = null;
     novoNivelConhecimento.value = 0;
-    numModulos.value = 0;
-    novaUnidade.value.cargaHorariaTotal = 0;
+    unidadesFiltradas.value = [];
+  }
+});
+
+// Quando o professor muda a área no modal de UC, carrega as UCs daquela área
+watch(areaSelecionadaFiltro, async (novaArea) => {
+  if (novaArea) {
+    try {
+      unidadesFiltradas.value = await listarUCsPorArea(novaArea);
+    } catch (e) { console.error(e); }
+  } else {
+    unidadesFiltradas.value = [];
   }
 });
 
@@ -308,11 +350,54 @@ watch(dialogAddCertificacao, (val) => {
     novaCertificacaoCarga.value = "";
   }
 });
+
+// =============================================
+// INICIALIZAÇÃO — Carrega tudo ao montar a página
+// =============================================
+onMounted(async () => {
+  try {
+    const usuario = getUsuarioLogado();
+    if (usuario) {
+      user.value.name = usuario.nome || "User";
+      
+      let professor;
+      try {
+        professor = await buscarProfessorPorCadastro(usuario.idUsuario);
+      } catch (e) {
+        // Professor ainda não existe
+      }
+      
+      if (!professor) {
+        const response = await fetch('http://localhost:3001/api/professor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idCadastro: usuario.idUsuario })
+        });
+        
+        if (response.ok) {
+          professor = await response.json();
+        }
+      }
+
+      if (professor && professor.idProfessor) {
+        idProfessor.value = professor.idProfessor;
+        await carregarAreasDisponiveis();
+        await carregarAreas();
+        await carregarUnidades();
+        await carregarCertificacoes();
+      }
+    }
+  } catch (e) { 
+    console.error('Erro ao inicializar:', e);
+  }
+});
 </script>
 
 <template>
   <!-- Menu do topo -->
-  <Menu />
+  <div id="main-menu-wrapper">
+    <Menu />
+  </div>
 
   <!-- Conteúdo principal -->
   <div class="mx-5 md:mx-20! lg:mx-50!">
@@ -383,8 +468,8 @@ watch(dialogAddCertificacao, (val) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredAreas" :key="item.nome">
-            <td class="text-center font-bold dark:text-white">{{ item.nome }}</td>
+          <tr v-for="item in filteredAreas" :key="item.idProfessorArea">
+            <td class="text-center font-bold dark:text-white">{{ item.area?.nome }}</td>
 
             <td>
               <div class="flex gap-2 justify-center">
@@ -423,19 +508,19 @@ watch(dialogAddCertificacao, (val) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredUnidades" :key="item.nome">
-            <td class="text-center font-bold dark:text-white">{{ item.nome }}</td>
+          <tr v-for="item in filteredUnidades" :key="item.idProfessorUC">
+            <td class="text-center font-bold dark:text-white">{{ item.unidadeCurricular?.nome }}</td>
             <td class="text-center dark:text-white">
               <div class="flex items-center gap-2 justify-center">
                 <v-progress-linear
-                  :model-value="item.progresso"
+                  :model-value="item.nivelCompetencia"
                   color="#4CAF50"
                   track-color="#E8F5E9"
                   height="10"
                   rounded
                   class="max-w-[150px]"
                 ></v-progress-linear>
-                <span class="text-sm font-bold text-gray-500">{{ item.progresso }}%</span>
+                <span class="text-sm font-bold text-gray-500">{{ item.nivelCompetencia }}%</span>
               </div>
             </td>
             <td>
@@ -472,13 +557,13 @@ watch(dialogAddCertificacao, (val) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in filteredCertificacoes" :key="item.nome">
+          <tr v-for="item in filteredCertificacoes" :key="item.idCertificacao">
             <td class="text-center font-bold dark:text-white">{{ item.nome }}</td>
             <td class="text-center font-bold">
-              <p class="p-2 bg-gray-200 dark:bg-[#121212] rounded-lg">{{ item.instituicao }}</p>
+              <p class="p-2 bg-gray-200 dark:bg-[#121212] rounded-lg">{{ item.instituicao || '—' }}</p>
             </td>
-            <td class="text-center font-bold dark:text-white">{{ item.cargaHoraria }}</td>
-            <td class="text-center font-bold dark:text-white">{{ item.data }}</td>
+            <td class="text-center font-bold dark:text-white">{{ item.cargaHoraria || '—' }}</td>
+            <td class="text-center font-bold dark:text-white">{{ item.dataObtencao || '—' }}</td>
             <td>
               <div class="flex gap-2 justify-center">
                 <v-btn
@@ -523,8 +608,10 @@ watch(dialogAddCertificacao, (val) => {
       </v-card-title>
       <v-card-text class="px-5 flex flex-col gap-4 mt-4">
         <v-select
-          v-model="novaAreaNome"
+          v-model="novaAreaId"
           :items="areasDisponiveis"
+          item-title="nome"
+          item-value="idArea"
           label="Selecione a Área"
           variant="outlined"
           hide-details
@@ -532,7 +619,7 @@ watch(dialogAddCertificacao, (val) => {
       </v-card-text>
       <v-card-actions class="px-5 justify-between mb-2">
         <v-btn color="grey" variant="elevated" @click="dialogAddArea = false">Cancelar</v-btn>
-        <v-btn color="red" variant="elevated" @click="salvarArea" class="bg-red-600 text-white">
+        <v-btn color="red" variant="elevated" @click.stop.prevent="salvarArea" class="bg-red-600 text-white">
           Salvar
         </v-btn>
       </v-card-actions>
@@ -557,11 +644,13 @@ watch(dialogAddCertificacao, (val) => {
       <div class="my-8" v-if="areaSelecionada">
         <v-card-text class="px-5 py-0 flex flex-col gap-4">
           <v-select
-            v-model="areaSelecionada.nome"
+            v-model="areaSelecionada.idArea"
+            :items="areasDisponiveis"
+            item-title="nome"
+            item-value="idArea"
             label="Nome da Área"
             variant="outlined"
             hide-details
-            :items="areasDisponiveis"
           ></v-select>
         </v-card-text>
         <v-card-actions class="p-0 px-5 flex justify-between mt-6">
@@ -587,7 +676,7 @@ watch(dialogAddCertificacao, (val) => {
       </v-card-title>
       <v-card-text class="pa-4 text-center text-lg">
         Tem certeza de que deseja excluir a área
-        <strong>{{ areaSelecionada?.nome }}</strong>? Esta ação não pode ser desfeita.
+        <strong>{{ areaSelecionada?.area?.nome }}</strong>? Esta ação não pode ser desfeita.
       </v-card-text>
       <v-card-actions class="pa-4">
         <v-spacer></v-spacer>
@@ -617,24 +706,27 @@ watch(dialogAddCertificacao, (val) => {
         ></v-btn>
       </v-card-title>
       <v-card-text class="px-5 flex flex-col gap-4 mt-4">
-        <!-- Primeiro o prof escolhe a área que ele já tem -->
+        <!-- Primeiro o prof escolhe uma das suas áreas -->
         <v-select
           v-model="areaSelecionadaFiltro"
-          :items="dadosAreas.map(a => a.nome)"
+          :items="dadosAreas"
+          :item-title="item => item.area?.nome"
+          item-value="idArea"
           label="Selecione a Área de Atuação"
           variant="outlined"
           hide-details
         ></v-select>
 
-        <!-- Aí aqui só aparece o que for daquela área! -->
+        <!-- Depois escolhe a UC daquela área -->
         <v-select
-          v-model="novaUnidadeNome"
+          v-model="novaUnidadeId"
           :items="unidadesFiltradas"
+          item-title="nome"
+          item-value="idUC"
           label="Selecione a Unidade Curricular"
           variant="outlined"
           hide-details
           :disabled="!areaSelecionadaFiltro"
-          :placeholder="areaSelecionadaFiltro ? 'Escolha a unidade' : 'Selecione uma área primeiro'"
           class="mt-1"
         ></v-select>
 
@@ -683,7 +775,7 @@ watch(dialogAddCertificacao, (val) => {
       <div class="my-8" v-if="unidadeSelecionada">
         <v-card-text class="px-5 py-0 flex flex-col gap-4">
           <v-text-field
-            v-model="unidadeSelecionada.nome"
+            v-model="unidadeSelecionada.unidadeCurricular.nome"
             label="Nome da Unidade Curricular"
             variant="outlined"
             hide-details
@@ -691,11 +783,11 @@ watch(dialogAddCertificacao, (val) => {
           ></v-text-field>
           <div class="mt-2">
             <div class="flex justify-between items-center mb-1">
-              <label class="text-sm font-bold text-gray-600">Progresso (%)</label>
-              <span class="text-sm font-bold text-red-600">{{ unidadeSelecionada.progresso }}%</span>
+              <label class="text-sm font-bold text-gray-600">Nível de Conhecimento (%)</label>
+              <span class="text-sm font-bold text-red-600">{{ unidadeSelecionada.nivelCompetencia }}%</span>
             </div>
             <v-slider
-              v-model="unidadeSelecionada.progresso"
+              v-model="unidadeSelecionada.nivelCompetencia"
               color="red"
               track-color="red-lighten-4"
               min="0"
@@ -729,7 +821,7 @@ watch(dialogAddCertificacao, (val) => {
       </v-card-title>
       <v-card-text class="pa-4 text-center text-lg">
         Tem certeza de que deseja excluir
-        <strong>{{ unidadeSelecionada?.nome }}</strong>? Esta ação não pode ser desfeita.
+        <strong>{{ unidadeSelecionada?.unidadeCurricular?.nome }}</strong>? Esta ação não pode ser desfeita.
       </v-card-text>
       <v-card-actions class="pa-4">
         <v-spacer></v-spacer>
@@ -835,7 +927,7 @@ watch(dialogAddCertificacao, (val) => {
             hide-details
           ></v-text-field>
           <v-text-field
-            v-model="certificacaoSelecionada.data"
+            v-model="certificacaoSelecionada.dataObtencao"
             label="Data de Conclusão"
             variant="outlined"
             hide-details
@@ -876,4 +968,31 @@ watch(dialogAddCertificacao, (val) => {
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <!-- SISTEMA DE NOTIFICAÇÃO (SNACKBAR) -->
+  <v-snackbar
+    v-model="snackbar.show"
+    :color="snackbar.color"
+    :timeout="4000"
+    location="top right"
+    elevation="24"
+    class="mt-12"
+  >
+    <div class="flex items-center gap-3">
+      <v-icon
+        color="white"
+        :icon="snackbar.color === 'success' ? 'mdi-check-circle' : 'mdi-alert-circle'"
+      ></v-icon>
+      <span class="font-medium text-white">{{ snackbar.text }}</span>
+    </div>
+    
+    <template v-slot:actions>
+      <v-btn
+        color="white"
+        variant="text"
+        icon="mdi-close"
+        @click="snackbar.show = false"
+      ></v-btn>
+    </template>
+  </v-snackbar>
 </template>
