@@ -8,7 +8,7 @@ export class Cadastro {
   @PrimaryGeneratedColumn({ name: 'id_usuario' })
   idUsuario: number;
 
-  @Column({ unique: true, type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255 })
   email: string;
 
   @Column({ select: false, type: 'varchar', length: 255 })

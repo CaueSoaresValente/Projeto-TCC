@@ -129,7 +129,7 @@ const handleDesignate = () => {
           <v-select :items="turmas" label="Turmas" item-title="label" item-value="value" v-model="turma"
             variant="outlined" density="comfortable" />
 
-          <v-select :items="areas" label="Área" item-title="label" item-value="value" v-model="turno" variant="outlined"
+          <v-select :items="areas" label="Unidades Curriculares" item-title="label" item-value="value" v-model="turno" variant="outlined"
             density="comfortable" />
         </div>
 

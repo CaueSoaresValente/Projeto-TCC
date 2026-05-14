@@ -48,8 +48,11 @@ app.post('/api/auth/login', (req, res) => authController.login(req, res));
 app.post('/api/auth/recuperar', (req, res) => authController.recuperarSenha(req, res));
 
 // ====================== ROTAS DE CADASTRO ======================
+app.get('/api/cadastro', authMiddleware(['gestor']), (req, res) => cadastroController.listAll(req, res));
 app.get('/api/cadastro/:id', authMiddleware(['gestor', 'opp', 'professor']), (req, res) => cadastroController.findById(req, res));
 app.post('/api/cadastro', (req, res) => cadastroController.create(req, res));
+app.put('/api/cadastro/:id', authMiddleware(['gestor']), (req, res) => cadastroController.update(req, res));
+app.delete('/api/cadastro/:id', authMiddleware(['gestor']), (req, res) => cadastroController.delete(req, res));
 
 // ====================== ROTAS DE ÁREAS ======================
 // Estas rotas permitem gerenciar as áreas (Tecnologia, Manutenção, etc.)

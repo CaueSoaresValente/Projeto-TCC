@@ -14,11 +14,15 @@ export class CadastroRepository {
 
   async findByEmail(email: string): Promise<Cadastro | null> {
     return await this.repo
-        .createQueryBuilder("cadastro")
-        .addSelect("cadastro.senha")
-        .where("cadastro.email = :email", { email })
-        .getOne();
-    }
+      .createQueryBuilder("cadastro")
+      .addSelect("cadastro.senha")
+      .where("cadastro.email = :email", { email })
+      .getOne();
+  }
+
+  async findByNome(nome: string): Promise<Cadastro | null> {
+    return await this.repo.findOne({ where: { nome } });
+  }
 
   async findById(id: number): Promise<Cadastro | null> {
     return await this.repo.findOne({ where: { idUsuario: id } });
@@ -30,7 +34,16 @@ export class CadastroRepository {
   }
 
   async delete(id: number): Promise<void> {
-    await this.repo.delete(id);
+    // Implementação da Opção B: Soft Delete (Inativação)
+    await this.repo.update(id, { status: false });
+  }
+
+  async listAll(): Promise<Cadastro[]> {
+    // Buscamos usuários onde status é verdadeiro (1 no MySQL)
+    return await this.repo.find({ 
+      where: { status: true },
+      order: { nome: 'ASC' } 
+    });
   }
 
   // ====================== SENHA (RNF005 + RN002) ======================

@@ -169,6 +169,11 @@ const menuGestor = [
     to: "/findprofessor",
     icon: "mdi-account-group-outline",
   },
+  {
+    label: "Gerenciar Cadastros",
+    to: "/gerenciarcadastros",
+    icon: "mdi-account-cog-outline",
+  },
 ];
 
 // OPP: mesmas opções do gestor, mas na prática o backend filtra
@@ -185,6 +190,11 @@ const menuOPP = [
     label: "Gestão de Professores",
     to: "/findprofessor",
     icon: "mdi-account-group-outline",
+  },
+  {
+    label: "Gerenciar Cadastros",
+    to: "/gerenciarcadastros",
+    icon: "mdi-account-cog-outline",
   },
 ];
 

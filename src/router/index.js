@@ -10,6 +10,7 @@ import GerAreasComp from "@/pages/Areas_Competencias/GerAreasComp.vue";
 import PerfilProfessor from "@/pages/professor/PerfilProfessor.vue";
 import DisponibilidadeProf from "@/pages/professor/DisponibilidadeProf.vue";
 import CalendarioProf from "@/pages/professor/CalendarioProf.vue";
+import GerenciarCadastros from "@/pages/gestaoProfessores/GerenciarCadastros.vue";
 
 
 const routes = [
@@ -64,6 +65,11 @@ const routes = [
   path:"/calendarioprof",
   name:"calendarioprof",
   component: CalendarioProf,
+ },
+ {
+  path: "/gerenciarcadastros",
+  name: "GerenciarCadastros",
+  component: GerenciarCadastros,
  },
 
 

@@ -51,8 +51,13 @@ async function request(url: string, options: RequestInit = {}) {
     throw new Error(errorData.message || `Erro ${response.status}`);
   }
 
+  // Se não houver conteúdo (ex: DELETE com status 204), não tentamos parsear o JSON
+  if (response.status === 204) {
+    return null;
+  }
+
   // Retorna os dados em JSON
-  return response.json();
+  return response.json().catch(() => ({}));
 }
 
 // ============================================================
@@ -133,6 +138,32 @@ export async function criarCadastro(dados: {
  */
 export async function buscarCadastro(id: number) {
   return request(`/api/cadastro/${id}`);
+}
+
+/**
+ * Lista todos os cadastros (usuários).
+ */
+export async function listarCadastros() {
+  return request('/api/cadastro');
+}
+
+/**
+ * Atualiza um cadastro existente.
+ */
+export async function editarCadastro(id: number, dados: any) {
+  return request(`/api/cadastro/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  });
+}
+
+/**
+ * Exclui um cadastro.
+ */
+export async function excluirCadastro(id: number) {
+  return request(`/api/cadastro/${id}`, {
+    method: 'DELETE',
+  });
 }
 
 // ============================================================
