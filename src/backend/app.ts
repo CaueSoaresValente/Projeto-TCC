@@ -24,6 +24,7 @@ import { ProfessorUCController } from './modules/professor/professor-uc.controll
 import { CertificacaoController } from './modules/professor/certificacao.controller.js';
 import { ProfessorController } from './modules/professor/professor.controller.js';
 import { DisponibilidadeController } from './modules/disponibilidade/disponibilidade.controller.js';
+import { OPPController } from './modules/opp/opp.controller.js';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ const profUCController = new ProfessorUCController();
 const certificacaoController = new CertificacaoController();
 const professorController = new ProfessorController();
 const disponibilidadeController = new DisponibilidadeController();
+const oppController = new OPPController();
 
 // ====================== ROTAS DE AUTENTICAÇÃO ======================
 app.post('/api/auth/login', (req, res) => authController.login(req, res));
@@ -60,6 +62,9 @@ app.get('/api/areas', (req, res) => areaController.list(req, res));
 app.post('/api/areas', (req, res) => areaController.create(req, res));
 app.put('/api/areas/:id', (req, res) => areaController.update(req, res));
 app.delete('/api/areas/:id', (req, res) => areaController.delete(req, res));
+
+// ====================== ROTAS DE OPP ======================
+app.get('/api/opps', (req, res) => oppController.list(req, res));
 
 // ====================== ROTAS DE COMPETÊNCIAS (UCs) ======================
 // Estas rotas permitem gerenciar as competências/unidades curriculares

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import Menu from '@/components/Menu.vue';
 import ModalEditarTurma from "@/components/ModalEditarTurma.vue";
 
@@ -52,7 +52,8 @@ function salvarTurma(form) {
     alert("Alterações salvas com sucesso!");
 }
 
-const turmas = [
+// DIDÁTICA: Transformamos a lista fixa em reativa (ref)
+const turmas = ref([
     {
         label: "CPTMTDS04", value: "cptmtds04", modalidade: "tec", siglas: "M01",
         areas: ["Tecnologia", "Software"],
@@ -152,7 +153,19 @@ const turmas = [
             { periodo: "Integral", aulas: { Sáb: { disciplina: "Portfólio", professor: "Ana Paula" } } },
         ]
     },
-];
+]);
+
+// --------------------------------------------------------
+// DIDÁTICA: Assim que a página carrega, verificamos o LocalStorage
+// Se o usuário adicionou alguma turma nova, nós a juntamos aqui!
+// --------------------------------------------------------
+onMounted(() => {
+    const turmasSalvas = JSON.parse(localStorage.getItem('novasTurmas')) || [];
+    if (turmasSalvas.length > 0) {
+        // Pega as turmas existentes e junta com as novas
+        turmas.value = [...turmas.value, ...turmasSalvas];
+    }
+});
 
 const periodoDescricoes = {
     'M01': 'Manhã - Antes do intervalo',
@@ -169,7 +182,8 @@ const periodoDescricoes = {
 };
 
 const filteredTurmas = computed(() => {
-    return turmas.filter(turma => {
+    // DIDÁTICA: Como 'turmas' agora é uma 'ref', precisamos acessar '.value'
+    return turmas.value.filter(turma => {
         
         const matchesPeriod = selectedPeriod.value === "Todas" || 
                             (selectedPeriod.value === "Manhã" && turma.siglas.startsWith('M')) ||

@@ -1,6 +1,7 @@
 <script setup>
 import Menu from "@/components/Menu.vue";
-import { ref } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
+import { useRouter } from "vue-router";
 
 const user = ref({
   name: "User",
@@ -60,8 +61,67 @@ const turmas = [
 
 ];
 
-const selectedAreas = ref([]);
-const areasDisponiveis = [...new Set(turmas.flatMap((t) => t.areas))];
+// DIDÁTICA: Mudamos de um array [] para null, pois agora o usuário escolhe APENAS UMA área
+const router = useRouter();
+
+// DIDÁTICA: Variável para capturar o nome digitado no input
+const nomeTurma = ref("");
+
+// DIDÁTICA: Variáveis para datas
+const dataInicio = ref("");
+const dataFim = ref("");
+
+// Cálculo para a data mínima permitida (Amanhã)
+const dataAmanha = computed(() => {
+  const amanha = new Date();
+  amanha.setDate(amanha.getDate() + 1);
+  return amanha.toISOString().split("T")[0]; // formato YYYY-MM-DD
+});
+
+// Aulas por semana (somatória dos dias escolhidos)
+const aulasPorSemana = computed(() => {
+  return Object.values(selectedPeriodo.value).filter(val => val !== null).length;
+});
+
+// Total de aulas no semestre/período (ocorrências dos dias escolhidos entre a data início e fim)
+const totalAulas = computed(() => {
+  if (!dataInicio.value || !dataFim.value) return 0;
+  
+  const startDate = new Date(dataInicio.value + "T00:00:00");
+  const endDate = new Date(dataFim.value + "T00:00:00");
+  
+  if (startDate > endDate) return 0;
+
+  // Date.getDay() retorna 1 para Segunda, 2 para Terça...
+  const mapaDiasJs = {
+    segunda: 1,
+    terca: 2,
+    quarta: 3,
+    quinta: 4,
+    sexta: 5,
+    sabado: 6
+  };
+
+  const diasSelecionadosJs = Object.keys(selectedPeriodo.value)
+    .filter(dia => selectedPeriodo.value[dia] !== null)
+    .map(dia => mapaDiasJs[dia]);
+
+  let total = 0;
+  const current = new Date(startDate);
+  
+  while (current <= endDate) {
+    if (diasSelecionadosJs.includes(current.getDay())) {
+      total++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  
+  return total;
+});
+
+const selectedAreas = ref(null);
+// Inicializamos como uma lista vazia, que será preenchida com dados do banco
+const areasDisponiveis = ref([]);
 
 const tipoCurso = ref("tec");
 
@@ -96,10 +156,14 @@ function togglePeriodo(diaValue, periodoValue) {
   } else {
     selectedPeriodo.value[diaValue] = periodoValue;
   }
+  // DIDÁTICA: Limpa as UCs salvas daquele dia se o usuário mudar o turno (Manhã, Tarde, etc)
+  // Isso evita que fiquem UCs da "Noite" salvas num dia que foi alterado para "Manhã"
+  ucsSalvas.value[diaValue] = [];
 }
 
 function removerPeriodo(diaValue) {
   selectedPeriodo.value[diaValue] = null;
+  ucsSalvas.value[diaValue] = [];
 }
 
 // Lista de todas as unidades curriculares disponíveis
@@ -137,7 +201,57 @@ const ucsSalvas = ref({
   sabado: [],
 });
 
-const periodosDisponiveis = ["M1", "M2", "T1", "T2", "N1", "N2", "Manhã", "Tarde", "Noite", "INT"];
+// DIDÁTICA: Agora a lista de períodos para a UC não é mais fixa.
+// Ela é calculada dinamicamente dependendo do período (Manhã, Tarde...) 
+// que o usuário escolheu para aquele dia específico!
+const periodosDisponiveisParaOModal = computed(() => {
+  const periodoDoDiaSelecionado = selectedPeriodo.value[diaDoModal.value];
+
+  if (periodoDoDiaSelecionado === 'manha') {
+    return ['M01', 'M02', 'Manhã'];
+  } else if (periodoDoDiaSelecionado === 'tarde') {
+    return ['T01', 'T02', 'Tarde'];
+  } else if (periodoDoDiaSelecionado === 'noite') {
+    return ['N01', 'N02', 'Noite'];
+  } else if (periodoDoDiaSelecionado === 'INT' || periodoDoDiaSelecionado === 'integral') {
+    // Se for integral, o usuário pode escolher qualquer subperíodo
+    return ['M01', 'M02', 'T01', 'T02', 'N01', 'N02', 'Manhã', 'Tarde', 'Noite', 'Integral'];
+  }
+
+  return [];
+});
+
+// DIDÁTICA: Função para calcular dinamicamente quais períodos sobram para uma determinada UC.
+// Ela bloqueia opções conflitantes (ex: se alguém escolheu 'M01', ninguém pode escolher 'Manhã').
+function periodosDisponiveisPara(ucNome) {
+  const basePeriodos = periodosDisponiveisParaOModal.value;
+  const outrasUcs = ucsSelecionadasTemp.value.filter(item => item.uc !== ucNome && item.periodo);
+  
+  const conflitosGlobais = {
+    'Manhã': ['M01', 'M02'],
+    'M01': ['Manhã', 'Integral'],
+    'M02': ['Manhã', 'Integral'],
+    'Tarde': ['T01', 'T02'],
+    'T01': ['Tarde', 'Integral'],
+    'T02': ['Tarde', 'Integral'],
+    'Noite': ['N01', 'N02'],
+    'N01': ['Noite', 'Integral'],
+    'N02': ['Noite', 'Integral'],
+    'Integral': ['M01', 'M02', 'T01', 'T02', 'N01', 'N02', 'Manhã', 'Tarde', 'Noite']
+  };
+
+  const periodosBloqueados = new Set();
+
+  outrasUcs.forEach(item => {
+    // Bloqueia o exato mesmo período
+    periodosBloqueados.add(item.periodo);
+    // Bloqueia os períodos conflitantes
+    const conflitosDesseItem = conflitosGlobais[item.periodo] || [];
+    conflitosDesseItem.forEach(c => periodosBloqueados.add(c));
+  });
+
+  return basePeriodos.filter(p => !periodosBloqueados.has(p));
+}
 
 function abrirModal(diaValue) {
   diaDoModal.value = diaValue;
@@ -153,6 +267,8 @@ function toggleUCSelection(ucNome) {
   } else {
     ucsSelecionadasTemp.value.push({ uc: ucNome, periodo: "" });
   }
+  // Força reatividade no Vue
+  ucsSelecionadasTemp.value = [...ucsSelecionadasTemp.value];
 }
 
 function isUCSelected(ucNome) {
@@ -165,11 +281,29 @@ function getSelectedUCPeriod(ucNome) {
 }
 
 function updateUCPeriod(ucNome, periodo) {
+  // Validação ESTREITA: Impede que o Vue ou o Vuetify burlem a seleção (caso de lentidão na reatividade)
+  if (periodo !== "") {
+    const disponiveis = periodosDisponiveisPara(ucNome);
+    if (!disponiveis.includes(periodo)) {
+      alert(`Erro: O período '${periodo}' não pode ser selecionado devido a um conflito de horário com outra matéria já marcada.`);
+      return; // Bloqueia a alteração
+    }
+  }
+
   const item = ucsSelecionadasTemp.value.find(item => item.uc === ucNome);
-  if (item) item.periodo = periodo;
+  if (item) {
+    item.periodo = periodo;
+    // DIDÁTICA: Recria o array para forçar o Vue a re-renderizar a tela inteira do modal instantaneamente
+    ucsSelecionadasTemp.value = [...ucsSelecionadasTemp.value];
+  }
 }
 
 function salvarUCs() {
+  const ucsSemPeriodo = ucsSelecionadasTemp.value.filter(item => !item.periodo);
+  if (ucsSemPeriodo.length > 0) {
+    alert("Por favor, selecione o período para todas as unidades curriculares marcadas.");
+    return;
+  }
   ucsSalvas.value[diaDoModal.value] = [...ucsSelecionadasTemp.value];
   modalAberto.value = false;
 }
@@ -178,14 +312,166 @@ function fecharModal() {
   modalAberto.value = false;
 }
 
-const oppsResponsavel = ref([
-  { label: "Opp 1", value: "opp1" },
-  { label: "Opp 2", value: "opp2" },
-  { label: "Opp 3", value: "opp3" },
-  { label: "Opp 4", value: "opp4" },
-]);
+// Guardamos TODOS os OPPs do banco aqui, para podermos filtrar depois
+const todosOpps = ref([]);
 
-const selectedOpps = ref([]);
+// Esta lista será alimentada dinamicamente dependendo da Área escolhida
+const oppsResponsavel = ref([]);
+
+// Mudamos para `null` ao invés de array, pois agora selecionaremos apenas 1 OPP
+const selectedOpps = ref(null);
+
+// --------------------------------------------------------
+// DIDÁTICA: 'watch' fica "vigiando" uma variável.
+// Se 'selectedAreas' mudar, a função abaixo será executada automaticamente.
+// --------------------------------------------------------
+watch(selectedAreas, (novaAreaId) => {
+  // Limpamos o OPP que estava selecionado, pois a área mudou
+  selectedOpps.value = null;
+
+  if (!novaAreaId) {
+    // Se não tiver área selecionada, a lista de OPPs fica vazia
+    oppsResponsavel.value = [];
+    return;
+  }
+
+  // Filtramos os OPPs: pegamos apenas aqueles que têm a 'novaAreaId' nas suas áreas
+  const oppsFiltrados = todosOpps.value.filter(opp => {
+    // opp.oppAreas é a lista de áreas que aquele OPP possui
+    return opp.oppAreas && opp.oppAreas.some(oa => oa.idArea === novaAreaId);
+  });
+
+  // Traduzimos os OPPs filtrados para o formato do v-select
+  oppsResponsavel.value = oppsFiltrados.map(opp => ({
+    label: opp.cadastro.nome,
+    value: opp.idOPP
+  }));
+});
+
+// --------------------------------------------------------
+// DIDÁTICA: O gancho (hook) onMounted é chamado automaticamente
+// pelo Vue.js assim que este componente (página) aparece na tela.
+// É o local ideal para fazermos a conexão com o backend (API).
+// --------------------------------------------------------
+onMounted(() => {
+  carregarAreas();
+  carregarOpps();
+});
+
+// --------------------------------------------------------
+// DIDÁTICA: Função para buscar as áreas no banco de dados.
+// Usamos async/await pois é uma operação demorada (requisição de rede).
+// --------------------------------------------------------
+async function carregarAreas() {
+  try {
+    // Fazemos um pedido (fetch) para a nossa rota do backend
+    const response = await fetch("http://localhost:3001/api/areas");
+    const data = await response.json();
+    
+    // Mapeamos a resposta para o formato esperado pelo <v-select>
+    // title: o texto que aparece na tela (ex: Tecnologia)
+    // value: o identificador único (ex: 1)
+    areasDisponiveis.value = data.map(area => ({
+      title: area.nome,
+      value: area.idArea
+    }));
+  } catch (error) {
+    console.error("Erro ao carregar áreas:", error);
+  }
+}
+
+// --------------------------------------------------------
+// DIDÁTICA: Função para buscar os OPPs no banco de dados.
+// --------------------------------------------------------
+async function carregarOpps() {
+  try {
+    const response = await fetch("http://localhost:3001/api/opps");
+    const data = await response.json();
+    
+    // Guardamos os dados completos do banco na nossa variável "escondida"
+    // Não mapeamos para 'oppsResponsavel' logo de cara, porque o usuário
+    // precisa escolher a Área primeiro!
+    todosOpps.value = data;
+  } catch (error) {
+    console.error("Erro ao carregar OPPs:", error);
+  }
+}
+
+// --------------------------------------------------------
+// DIDÁTICA: Função para capturar os dados e salvar no LocalStorage
+// --------------------------------------------------------
+function salvarTurmaNoNavegador() {
+  if (!nomeTurma.value) {
+    alert("Por favor, preencha o nome da turma!");
+    return;
+  }
+
+  // Descobrindo o nome da área selecionada (já que o selectedAreas guarda apenas o ID)
+  const areaObj = areasDisponiveis.value.find(a => a.value === selectedAreas.value);
+  const nomeArea = areaObj ? areaObj.title : "Geral";
+
+  // O LocalStorage só guarda textos. Por isso usamos JSON.stringify()
+  // Mas antes, vamos montar o objeto EXATAMENTE igual ao da tela de Turmas
+  
+  // Vamos formatar a grade (horários)
+  // O formato exigido pela tela de Turmas é: 
+  // [ { periodo: "M01", aulas: { Seg: { disciplina: "Web", professor: "João" } } } ]
+  const gradeFormatada = [];
+  
+  // ucsSalvas é um objeto onde as chaves são dias. Precisamos inverter a lógica para agrupar por período
+  const periodosMapeados = {};
+
+  const mapaDias = {
+    segunda: "Seg",
+    terca: "Ter",
+    quarta: "Qua",
+    quinta: "Qui",
+    sexta: "Sex",
+    sabado: "Sáb"
+  };
+
+  for (const [diaCompleto, listaUcs] of Object.entries(ucsSalvas.value)) {
+    const diaCurto = mapaDias[diaCompleto];
+    for (const ucItem of listaUcs) {
+      const periodoDaUc = ucItem.periodo; // ex: "M1" ou "Manhã"
+      if (!periodosMapeados[periodoDaUc]) {
+        periodosMapeados[periodoDaUc] = { aulas: {} };
+      }
+      
+      periodosMapeados[periodoDaUc].aulas[diaCurto] = {
+        disciplina: ucItem.uc,
+        professor: "A definir" // Como não escolhemos professor na tela, mockamos aqui
+      };
+    }
+  }
+
+  for (const [periodoNome, dadosPeriodo] of Object.entries(periodosMapeados)) {
+    gradeFormatada.push({
+      periodo: periodoNome,
+      aulas: dadosPeriodo.aulas
+    });
+  }
+
+  const novaTurma = {
+    label: nomeTurma.value,
+    value: "turma-" + Date.now(), // Geramos um ID único baseado na data atual
+    modalidade: tipoCurso.value,
+    siglas: gradeFormatada.length > 0 ? gradeFormatada[0].periodo : "N/D", // Pega o 1º período como sigla
+    areas: [nomeArea], // Na tela de turmas, areas é um array
+    grade: gradeFormatada
+  };
+
+  // Pegar as turmas que já existem no localStorage (se houver)
+  // Se não existir, iniciamos com um array vazio []
+  const turmasSalvas = JSON.parse(localStorage.getItem('novasTurmas')) || [];
+  turmasSalvas.push(novaTurma);
+
+  // Salvar a lista atualizada de volta no armazenamento do navegador
+  localStorage.setItem('novasTurmas', JSON.stringify(turmasSalvas));
+
+  // DIDÁTICA: Usamos o router para enviar o usuário para a página de listagem
+  router.push('/turmas');
+}
 
 const periodoDescricoes = {
   'M01': 'Manhã - Antes do intervalo',
@@ -223,15 +509,17 @@ const periodoDescricoes = {
           <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400">
             Nome da Turma
           </p>
-          <v-text-field label="Digite o nome..." variant="filled" hide-details></v-text-field>
+          <!-- DIDÁTICA: Linkamos o campo com a nossa variável usando v-model -->
+          <v-text-field v-model="nomeTurma" label="Digite o nome..." variant="filled" hide-details></v-text-field>
         </div>
 
         <div class="w-full mb-4">
           <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400">
             Áreas
           </p>
-          <v-select v-model="selectedAreas" chips label="Selecione..." :items="areasDisponiveis" multiple
-            variant="filled" hide-details></v-select>
+          <!-- DIDÁTICA: Removemos o atributo 'multiple' para virar seleção única -->
+          <v-select v-model="selectedAreas" chips label="Selecione..." :items="areasDisponiveis"
+            item-title="title" item-value="value" variant="filled" hide-details></v-select>
         </div>
       </div>
 
@@ -240,8 +528,9 @@ const periodoDescricoes = {
           <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400">
             Opp Responsável
           </p>
-          <v-select v-model="selectedOpps" chips label="Selecione..." :items="oppsResponsavel" item-title="label"
-            item-value="value" multiple variant="filled" hide-details></v-select>
+          <!-- DIDÁTICA: A lista ':items' agora será preenchida dinamicamente pelo 'watch' -->
+          <v-select v-model="selectedOpps" chips label="Selecione uma Área primeiro..." :items="oppsResponsavel" item-title="label"
+            item-value="value" variant="filled" hide-details :disabled="!selectedAreas"></v-select>
         </div>
 
         <div class="">
@@ -262,28 +551,31 @@ const periodoDescricoes = {
           <p class="font-bold mt-3.5 lg:mt-0 mb-2 text-sm text-gray-500 dark:text-gray-400">
             Início
           </p>
-          <v-text-field label="Selecione data" type="date" variant="filled" hide-details></v-text-field>
+          <v-text-field v-model="dataInicio" :min="dataAmanha" label="Selecione data" type="date" variant="filled" hide-details></v-text-field>
         </div>
 
         <div>
           <p class="font-bold mb-2 text-sm text-gray-500 dark:text-gray-400">
             Fim
           </p>
-          <v-text-field label="Selecione data" type="date" variant="filled" hide-details></v-text-field>
+          <!-- Fim não pode ser menor que o Início, caso o usuário já tenha preenchido. Senão, no mínimo Amanhã -->
+          <v-text-field v-model="dataFim" :min="dataInicio || dataAmanha" label="Selecione data" type="date" variant="filled" hide-details></v-text-field>
         </div>
 
         <div>
           <p class="font-bold mb-2 text-sm text-gray-500 dark:text-gray-400">
             Aulas por Semana
           </p>
-          <v-text-field label="Aulas por semana" variant="filled" hide-details type="number"></v-text-field>
+          <!-- DIDÁTICA: Campo apenas para visualização (readonly), seu valor é calculado automaticamente pelo 'aulasPorSemana' -->
+          <v-text-field :model-value="aulasPorSemana" readonly label="Aulas por semana" variant="filled" hide-details type="number"></v-text-field>
         </div>
 
         <div>
           <p class="font-bold mb-2 text-sm text-gray-500 dark:text-gray-400">
             Total de Aulas
           </p>
-          <v-text-field label="Total de aulas" variant="filled" hide-details type="number"></v-text-field>
+          <!-- DIDÁTICA: Também readonly, calcula as ocorrências -->
+          <v-text-field :model-value="totalAulas" readonly label="Total de aulas" variant="filled" hide-details type="number"></v-text-field>
         </div>
       </div>
     </div>
@@ -539,7 +831,8 @@ const periodoDescricoes = {
 
   <div class="flex justify-end gap-4 mt-5 mx-5 md:mx-50! mb-10">
     <v-btn variant="outlined" color="red">Cancelar</v-btn>
-    <v-btn color="red" class="bg-red-600 text-white">Adicionar Turma</v-btn>
+    <!-- DIDÁTICA: Adicionado evento de clique para rodar a nossa função -->
+    <v-btn color="red" class="bg-red-600 text-white" @click="salvarTurmaNoNavegador()">Adicionar Turma</v-btn>
   </div>
 
   <!-- Modal de Unidade Curricular -->
@@ -558,9 +851,10 @@ const periodoDescricoes = {
             class="flex items-center gap-2 mb-2 pb-2 px-4">
             <v-checkbox :model-value="isUCSelected(uc.nome)" @update:model-value="toggleUCSelection(uc.nome)"
               :label="uc.nome + ' (' + uc.carga + ')'" color="red" hide-details density="compact"
+              :disabled="!isUCSelected(uc.nome) && periodosDisponiveisPara(uc.nome).length === 0"
               class="flex-1"></v-checkbox>
             <v-select v-if="isUCSelected(uc.nome)" :model-value="getSelectedUCPeriod(uc.nome)"
-              @update:model-value="updateUCPeriod(uc.nome, $event)" :items="periodosDisponiveis" label="Período"
+              @update:model-value="updateUCPeriod(uc.nome, $event)" :items="periodosDisponiveisPara(uc.nome)" label="Período"
               variant="outlined" density="compact" hide-details class="max-w-[130px] mt-2"></v-select>
           </div>
         </div>
