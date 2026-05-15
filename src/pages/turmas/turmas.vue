@@ -473,29 +473,100 @@ const filteredTurmas = computed(() => {
                     <div>
                         <h2 class="text-xl font-bold">{{ turmaSelecionada.label }}</h2>
                         <div class="flex gap-2 items-center">
-                            <p class="text-xs text-gray-500">Cronograma Semanal •</p>
-                            <v-chip v-for="slot in turmaSelecionada.grade" :key="slot.periodo"
-                                variant="tonal" size="x-small" class="text-red-600! font-bold">
-                                {{ slot.periodo }}
-                            </v-chip>
+                            <p class="text-xs text-gray-500">Cronograma Semanal</p>
                         </div>
                     </div>
                 </div>
-                <v-btn icon="mdi-close" variant="text" size="small" @click="dialogGrade = false"></v-btn>
+                <div class="flex items-center gap-4">
+                    <v-menu open-on-hover location="bottom end" :offset="5" transition="slide-y-transition">
+                        <template v-slot:activator="{ props }">
+                            <button v-bind="props" class="flex items-center gap-2 px-4 py-1.5 bg-white border-2 border-t-4 rounded-lg text-gray-800 font-bold text-sm shadow-sm hover:shadow transition-colors"
+                                :class="{
+                                    'border-green-200 border-t-green-600 hover:bg-green-50': turmaSelecionada.modalidade === 'cai',
+                                    'border-blue-200 border-t-blue-600 hover:bg-blue-50': turmaSelecionada.modalidade === 'fic',
+                                    'border-orange-200 border-t-orange-600 hover:bg-orange-50': turmaSelecionada.modalidade === 'tec'
+                                }">
+                                <v-icon icon="mdi-clipboard-list-outline" size="18"></v-icon>
+                                Legenda
+                            </button>
+                        </template>
+                        <v-card class="p-4 shadow-2xl rounded-xl border-t-4 bg-white" width="280"
+                            :class="{
+                                'border-green-600': turmaSelecionada.modalidade === 'cai',
+                                'border-blue-600': turmaSelecionada.modalidade === 'fic',
+                                'border-orange-600': turmaSelecionada.modalidade === 'tec'
+                            }">
+                            <div class="flex items-center gap-2 mb-4">
+                                <v-icon size="20" icon="mdi-book-open-variant" color="grey-darken-4"></v-icon>
+                                <h2 class="text-lg font-black text-grey-darken-4 uppercase tracking-tight">Legenda</h2>
+                            </div>
+
+                            <div class="space-y-3">
+                                <div>
+                                    <p class="font-black text-xs text-gray-400 uppercase mb-1">Manhã</p>
+                                    <ul class="list-none space-y-1 ml-1">
+                                        <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600">
+                                            <span class="text-red-500">•</span> <b>M01</b> &rarr; Antes do intervalo
+                                        </li>
+                                        <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600">
+                                            <span class="text-red-500">•</span> <b>M02</b> &rarr; Depois do intervalo
+                                        </li>
+                                    </ul>
+                                </div>
+                                <v-divider></v-divider>
+                                <div>
+                                    <p class="font-black text-xs text-gray-400 uppercase mb-1">Tarde</p>
+                                    <ul class="list-none space-y-1 ml-1">
+                                        <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600">
+                                            <span class="text-red-500">•</span> <b>T01</b> &rarr; Antes do intervalo
+                                        </li>
+                                        <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600">
+                                            <span class="text-red-500">•</span> <b>T02</b> &rarr; Depois do intervalo
+                                        </li>
+                                    </ul>
+                                </div>
+                                <v-divider></v-divider>
+                                <div>
+                                    <p class="font-black text-xs text-gray-400 uppercase mb-1">Noite</p>
+                                    <ul class="list-none space-y-1 ml-1">
+                                        <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600">
+                                            <span class="text-red-500">•</span> <b>N01</b> &rarr; Antes do intervalo
+                                        </li>
+                                        <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600">
+                                            <span class="text-red-500">•</span> <b>N02</b> &rarr; Depois do intervalo
+                                        </li>
+                                    </ul>
+                                </div>
+                                <v-divider></v-divider>
+                                <div>
+                                    <p class="font-black text-xs text-gray-400 uppercase mb-1">Integral</p>
+                                    <ul class="list-none space-y-1 ml-1">
+                                        <li class="flex items-center gap-2 text-[11px] font-bold text-gray-600">
+                                            <span class="text-red-500">•</span> <b>INT</b> &rarr; Integral
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </v-card>
+                    </v-menu>
+                    <v-btn icon="mdi-close" variant="text" size="small" @click="dialogGrade = false"></v-btn>
+                </div>
             </v-card-title>
 
             <v-divider></v-divider>
 
             <v-card-text class="pa-6">
-                <table class="w-full border-collapse">
-                    <thead>
-                        <tr
-                            :class="{
-                                'bg-green-50': turmaSelecionada.modalidade === 'cai',
-                                'bg-blue-50': turmaSelecionada.modalidade === 'fic',
-                                'bg-orange-50': turmaSelecionada.modalidade === 'tec'
-                            }">
-                            <th class="p-3 border-b-2 border-r w-20 text-center text-sm font-bold text-gray-500"
+                <!-- Tabela de Cronograma -->
+                <div class="overflow-x-auto border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr
+                                :class="{
+                                    'bg-green-50': turmaSelecionada.modalidade === 'cai',
+                                    'bg-blue-50': turmaSelecionada.modalidade === 'fic',
+                                    'bg-orange-50': turmaSelecionada.modalidade === 'tec'
+                                }">
+                                <th class="p-3 border-b-2 border-r w-20 text-center text-sm font-bold text-gray-500"
                                 :class="{
                                     'border-green-200': turmaSelecionada.modalidade === 'cai',
                                     'border-blue-200': turmaSelecionada.modalidade === 'fic',
@@ -543,16 +614,8 @@ const filteredTurmas = computed(() => {
                         </tr>
                     </tbody>
                 </table>
-            </v-card-text>
-
-            <v-divider></v-divider>
-
-            <v-card-actions class="pa-4 flex justify-between">
-                <div class="flex items-center gap-4">
-
                 </div>
-                <v-btn variant="text" @click="dialogGrade = false">Fechar</v-btn>
-            </v-card-actions>
+            </v-card-text>
         </v-card>
     </v-dialog>
 
