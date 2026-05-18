@@ -170,6 +170,11 @@ const menuGestor = [
     icon: "mdi-account-group-outline",
   },
   {
+    label: "Perfil dos Professores",
+    to: "/visualizarprofessores",
+    icon: "mdi-account-eye-outline",
+  },
+  {
     label: "Gerenciar Cadastros",
     to: "/gerenciarcadastros",
     icon: "mdi-account-cog-outline",
@@ -190,6 +195,11 @@ const menuOPP = [
     label: "Gestão de Professores",
     to: "/findprofessor",
     icon: "mdi-account-group-outline",
+  },
+  {
+    label: "Perfil dos Professores",
+    to: "/visualizarprofessores",
+    icon: "mdi-account-eye-outline",
   },
   {
     label: "Gerenciar Cadastros",
