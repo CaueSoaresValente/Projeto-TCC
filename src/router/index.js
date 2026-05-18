@@ -11,6 +11,8 @@ import PerfilProfessor from "@/pages/professor/PerfilProfessor.vue";
 import DisponibilidadeProf from "@/pages/professor/DisponibilidadeProf.vue";
 import CalendarioProf from "@/pages/professor/CalendarioProf.vue";
 import GerenciarCadastros from "@/pages/gestaoProfessores/GerenciarCadastros.vue";
+import VisualizarProfessores from "@/pages/gestaoProfessores/VisualizarProfessores.vue";
+import MeuPerfil from "@/pages/perfil/MeuPerfil.vue";
 
 
 const routes = [
@@ -71,8 +73,16 @@ const routes = [
   name: "GerenciarCadastros",
   component: GerenciarCadastros,
  },
-
-
+ {
+  path: "/visualizarprofessores",
+  name: "visualizarprofessores",
+  component: VisualizarProfessores,
+ },
+ {
+  path: "/perfil",
+  name: "meuperfil",
+  component: MeuPerfil,
+ },
 
 ];
 

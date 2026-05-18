@@ -30,7 +30,7 @@
   position: fixed;
   bottom: 16px; 
   right: 16px;   
-  z-index: 999; 
+  z-index: 9999 !important; 
 }
 
 @media (max-width: 600px) {

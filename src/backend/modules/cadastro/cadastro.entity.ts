@@ -20,6 +20,9 @@ export class Cadastro {
   @Column({ type: 'varchar', length: 100 })
   nome: string;
 
+  @Column({ name: 'foto_perfil', type: 'longtext', nullable: true })
+  fotoPerfil: string;
+
   @Column({ type: 'boolean', default: true })
   status: boolean;
 

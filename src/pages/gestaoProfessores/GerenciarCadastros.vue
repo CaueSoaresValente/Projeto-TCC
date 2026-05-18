@@ -191,8 +191,8 @@ onMounted(() => {
 <template>
   <Menu />
   <div class="px-4 md:px-10 lg:px-20 xl:px-40 pb-10">
-    <h1 class="text-3xl font-bold my-4 text-center">
-      Gerenciar Cadastros
+    <h1 class="text-3xl font-bold my-4">
+      Gerenciamento de Cadastros
     </h1>
 
     <v-sheet class="relative top-1 px-1">

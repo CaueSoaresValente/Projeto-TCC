@@ -448,3 +448,78 @@ export async function excluirCertificacao(id: number) {
   });
 }
 
+// ============================================================
+// PERFIL DOS PROFESSORES — Visualização para Gestor/OPP
+// ============================================================
+// Estas funções são usadas na tela "Perfil dos Professores".
+// O Gestor vê todos os professores, o OPP vê apenas os das suas áreas.
+// A filtragem é feita pelo backend com base no token JWT.
+// ============================================================
+
+/**
+ * Lista os professores com dados resumidos (nome, áreas, % ocupação).
+ * O backend filtra automaticamente:
+ *   - Gestor: vê todos
+ *   - OPP: vê apenas os das suas áreas
+ */
+export async function listarProfessoresPerfis() {
+  return request('/api/professores/perfis');
+}
+
+/**
+ * Busca o perfil completo de um professor.
+ * Retorna: áreas, UCs, certificações, disponibilidade, turmas (calendário).
+ * @param idProfessor - ID do professor
+ */
+export async function buscarPerfilProfessor(idProfessor: number) {
+  return request(`/api/professores/perfis/${idProfessor}`);
+}
+
+// ============================================================
+// MEU PERFIL — Edição do próprio perfil (todos os perfis)
+// ============================================================
+// Permite que o usuário logado (gestor, opp ou professor)
+// edite seu nome, foto e senha.
+// ============================================================
+
+/**
+ * Busca os dados do perfil do usuário logado.
+ */
+export async function buscarMeuPerfil() {
+  return request('/api/perfil');
+}
+
+/**
+ * Atualiza o nome e/ou foto de perfil do usuário logado.
+ * @param dados - Objeto com: nome?, email?, fotoPerfil? (base64)
+ */
+export async function atualizarMeuPerfil(dados: { nome?: string; email?: string; fotoPerfil?: string }) {
+  const result = await request('/api/perfil', {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  });
+
+  // Atualiza os dados no localStorage para refletir no menu
+  const usuarioAtual = getUsuarioLogado();
+  if (usuarioAtual) {
+    if (dados.nome) usuarioAtual.nome = dados.nome;
+    if (dados.email) usuarioAtual.email = dados.email;
+    if (dados.fotoPerfil !== undefined) usuarioAtual.fotoPerfil = dados.fotoPerfil;
+    localStorage.setItem(USER_KEY, JSON.stringify(usuarioAtual));
+  }
+
+  return result;
+}
+
+/**
+ * Altera a senha do usuário logado.
+ * @param senhaAtual - Senha atual para confirmação
+ * @param novaSenha - Nova senha (deve seguir as regras de segurança)
+ */
+export async function alterarMinhaSenha(senhaAtual: string, novaSenha: string) {
+  return request('/api/perfil/senha', {
+    method: 'PUT',
+    body: JSON.stringify({ senhaAtual, novaSenha }),
+  });
+}
+

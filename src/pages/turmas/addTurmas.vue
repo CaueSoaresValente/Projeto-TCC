@@ -535,7 +535,7 @@ const periodoDescricoes = {
 
         <div class="">
           <p class="mb-2 font-bold text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Tipos de Curso
+            Tipos de Cursoz
           </p>
 
           <v-radio-group v-model="tipoCurso" inline hide-details density="compact">

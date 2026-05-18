@@ -25,6 +25,8 @@ import { CertificacaoController } from './modules/professor/certificacao.control
 import { ProfessorController } from './modules/professor/professor.controller.js';
 import { DisponibilidadeController } from './modules/disponibilidade/disponibilidade.controller.js';
 import { OPPController } from './modules/opp/opp.controller.js';
+import { PerfilProfessorController } from './modules/professor/perfil-professor.controller.js';
+import { PerfilController } from './modules/perfil/perfil.controller.js';
 
 dotenv.config();
 
@@ -44,6 +46,8 @@ const certificacaoController = new CertificacaoController();
 const professorController = new ProfessorController();
 const disponibilidadeController = new DisponibilidadeController();
 const oppController = new OPPController();
+const perfilProfessorController = new PerfilProfessorController();
+const perfilController = new PerfilController();
 
 // ====================== ROTAS DE AUTENTICAÇÃO ======================
 app.post('/api/auth/login', (req, res) => authController.login(req, res));
@@ -110,6 +114,19 @@ app.get('/api/professor/:idProfessor/disponibilidade', (req, res) => disponibili
 app.post('/api/professor/:idProfessor/disponibilidade', (req, res) => disponibilidadeController.adicionar(req, res));
 app.put('/api/professor/:idProfessor/disponibilidade', (req, res) => disponibilidadeController.sincronizarSemana(req, res));
 app.delete('/api/professor/disponibilidade/:id', (req, res) => disponibilidadeController.remover(req, res));
+
+// ====================== ROTAS DE PERFIL DOS PROFESSORES (GESTOR/OPP) ======================
+// Estas rotas são usadas na tela "Perfil dos Professores".
+// Apenas gestor e opp podem acessar.
+// O gestor vê todos os professores, e o opp vê apenas os das suas áreas.
+app.get('/api/professores/perfis', authMiddleware(['gestor', 'opp']), (req, res) => perfilProfessorController.listar(req, res));
+app.get('/api/professores/perfis/:idProfessor', authMiddleware(['gestor', 'opp']), (req, res) => perfilProfessorController.perfilCompleto(req, res));
+
+// ====================== ROTAS DE MEU PERFIL ======================
+// Permite que qualquer usuário logado edite seu próprio perfil.
+app.get('/api/perfil', authMiddleware(['gestor', 'opp', 'professor']), (req, res) => perfilController.meuPerfil(req, res));
+app.put('/api/perfil', authMiddleware(['gestor', 'opp', 'professor']), (req, res) => perfilController.atualizarPerfil(req, res));
+app.put('/api/perfil/senha', authMiddleware(['gestor', 'opp', 'professor']), (req, res) => perfilController.alterarSenha(req, res));
 
 export default app;
 
