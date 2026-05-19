@@ -137,7 +137,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { getUsuarioLogado, logout } from "@/services/api";
 
@@ -152,8 +152,20 @@ const router = useRouter();
 //   - professor: vê calendário, suas UCs/áreas/certificações, disponibilidade
 // ============================================================
 
-const usuario = computed(() => getUsuarioLogado());
+const usuario = ref(getUsuarioLogado());
 const funcao = computed(() => usuario.value?.funcao || "");
+
+const atualizarUsuario = () => {
+  usuario.value = getUsuarioLogado();
+};
+
+onMounted(() => {
+  window.addEventListener('usuario-atualizado', atualizarUsuario);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('usuario-atualizado', atualizarUsuario);
+});
 
 // Itens do menu para cada perfil
 const menuGestor = [

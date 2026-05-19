@@ -2,6 +2,7 @@
 import Menu from "@/components/Menu.vue";
 import { ref, onMounted, watch, computed } from "vue";
 import { useRouter } from "vue-router";
+import { criarTurma, listarUCsPorArea } from "@/services/api";
 
 const user = ref({
   name: "User",
@@ -143,6 +144,18 @@ const selectedPeriodo = ref({
   sabado: null,
 });
 
+// DIDÁTICA: Controla quais dias estão mostrando o sub-menu de Integral
+// Quando o usuário clica em "Integral", o card mostra 3 opções:
+// Manhã+Tarde, Manhã+Noite, Tarde+Noite
+const integralSubMenu = ref({
+  segunda: false,
+  terca: false,
+  quarta: false,
+  quinta: false,
+  sexta: false,
+  sabado: false,
+});
+
 const periodos = [
   { label: "Manhã", value: "manha", color: "#F59E0B" },
   { label: "Tarde", value: "tarde", color: "#3B82F6" },
@@ -150,7 +163,22 @@ const periodos = [
   { label: "Integral", value: "INT", color: "#10B981" },
 ];
 
+// DIDÁTICA: Labels bonitos para exibir no badge do card
+const integralLabels = {
+  'INT_MT': 'Manhã + Tarde',
+  'INT_MN': 'Manhã + Noite',
+  'INT_TN': 'Tarde + Noite',
+};
+
 function togglePeriodo(diaValue, periodoValue) {
+  // Se clicou em "Integral", abre o sub-menu ao invés de selecionar direto
+  if (periodoValue === 'INT') {
+    integralSubMenu.value[diaValue] = !integralSubMenu.value[diaValue];
+    return;
+  }
+
+  integralSubMenu.value[diaValue] = false;
+
   if (selectedPeriodo.value[diaValue] === periodoValue) {
     selectedPeriodo.value[diaValue] = null;
   } else {
@@ -161,22 +189,21 @@ function togglePeriodo(diaValue, periodoValue) {
   ucsSalvas.value[diaValue] = [];
 }
 
-function removerPeriodo(diaValue) {
-  selectedPeriodo.value[diaValue] = null;
+// DIDÁTICA: Quando o usuário escolhe uma das 3 combinações de Integral
+function selecionarIntegral(diaValue, tipo) {
+  integralSubMenu.value[diaValue] = false;
+  selectedPeriodo.value[diaValue] = tipo; // 'INT_MT', 'INT_MN' ou 'INT_TN'
   ucsSalvas.value[diaValue] = [];
 }
 
-// Lista de todas as unidades curriculares disponíveis
-const unidadesCurriculares = [
-  { nome: "Programação Web", carga: "80h" },
-  { nome: "Banco de Dados", carga: "60h" },
-  { nome: "Redes de Computadores", carga: "40h" },
-  { nome: "Lógica de Programação", carga: "80h" },
-  { nome: "Sistemas Operacionais", carga: "40h" },
-  { nome: "Segurança da Informação", carga: "40h" },
-  { nome: "Desenvolvimento Mobile", carga: "60h" },
-  { nome: "Hardware e Manutenção", carga: "40h" },
-];
+function removerPeriodo(diaValue) {
+  selectedPeriodo.value[diaValue] = null;
+  integralSubMenu.value[diaValue] = false;
+  ucsSalvas.value[diaValue] = [];
+}
+
+// Lista de todas as unidades curriculares disponíveis, carregadas dinamicamente
+const unidadesCurriculares = ref([]);
 
 
 // Controla se o modal está aberto ou fechado
@@ -204,6 +231,20 @@ const ucsSalvas = ref({
 // DIDÁTICA: Agora a lista de períodos para a UC não é mais fixa.
 // Ela é calculada dinamicamente dependendo do período (Manhã, Tarde...) 
 // que o usuário escolheu para aquele dia específico!
+//
+// REGRA INTEGRAL: No modo Integral, o dia tem 6 slots concretos de horário
+// (M01, M02, T01, T02, N01, N02) MAIS as opções de período inteiro
+// (Manhã, Tarde, Noite) para quando uma UC ocupa o turno todo.
+//
+// Exemplo real: Lógica de Programação ocupa a "Manhã" inteira (M01+M02),
+// enquanto Banco de Dados fica em T01 e Redes em T02.
+//
+// A opção "Integral" foi REMOVIDA porque ela travava todos os 6 slots
+// de uma vez, o que não faz sentido quando queremos distribuir UCs.
+//
+// REGRA PERÍODO SIMPLES (Manhã/Tarde/Noite): O dia tem 2 sub-slots
+// (ex: M01 e M02) ou o período inteiro ("Manhã"). Se alguém escolhe
+// "Manhã", bloqueia M01 e M02 (e vice-versa).
 const periodosDisponiveisParaOModal = computed(() => {
   const periodoDoDiaSelecionado = selectedPeriodo.value[diaDoModal.value];
 
@@ -213,9 +254,15 @@ const periodosDisponiveisParaOModal = computed(() => {
     return ['T01', 'T02', 'Tarde'];
   } else if (periodoDoDiaSelecionado === 'noite') {
     return ['N01', 'N02', 'Noite'];
-  } else if (periodoDoDiaSelecionado === 'INT' || periodoDoDiaSelecionado === 'integral') {
-    // Se for integral, o usuário pode escolher qualquer subperíodo
-    return ['M01', 'M02', 'T01', 'T02', 'N01', 'N02', 'Manhã', 'Tarde', 'Noite', 'Integral'];
+  } else if (periodoDoDiaSelecionado === 'INT_MT') {
+    // INTEGRAL Manhã+Tarde: 4 sub-slots + 2 turnos completos
+    return ['M01', 'M02', 'Manhã', 'T01', 'T02', 'Tarde'];
+  } else if (periodoDoDiaSelecionado === 'INT_MN') {
+    // INTEGRAL Manhã+Noite: 4 sub-slots + 2 turnos completos
+    return ['M01', 'M02', 'Manhã', 'N01', 'N02', 'Noite'];
+  } else if (periodoDoDiaSelecionado === 'INT_TN') {
+    // INTEGRAL Tarde+Noite: 4 sub-slots + 2 turnos completos
+    return ['T01', 'T02', 'Tarde', 'N01', 'N02', 'Noite'];
   }
 
   return [];
@@ -223,29 +270,34 @@ const periodosDisponiveisParaOModal = computed(() => {
 
 // DIDÁTICA: Função para calcular dinamicamente quais períodos sobram para uma determinada UC.
 // Ela bloqueia opções conflitantes (ex: se alguém escolheu 'M01', ninguém pode escolher 'Manhã').
+//
+// Para INTEGRAL: a lógica é simples — cada slot é exclusivo (1:1).
+// Para PERÍODO SIMPLES: "Manhã" conflita com M01 e M02 (e vice-versa).
 function periodosDisponiveisPara(ucNome) {
   const basePeriodos = periodosDisponiveisParaOModal.value;
   const outrasUcs = ucsSelecionadasTemp.value.filter(item => item.uc !== ucNome && item.periodo);
   
+  // Tabela de conflitos: se alguém escolheu "Manhã", bloqueia M01 e M02.
+  // No modo Integral, como só temos os 6 slots granulares, 
+  // cada um conflita apenas consigo mesmo (já tratado abaixo).
   const conflitosGlobais = {
     'Manhã': ['M01', 'M02'],
-    'M01': ['Manhã', 'Integral'],
-    'M02': ['Manhã', 'Integral'],
+    'M01': ['Manhã'],
+    'M02': ['Manhã'],
     'Tarde': ['T01', 'T02'],
-    'T01': ['Tarde', 'Integral'],
-    'T02': ['Tarde', 'Integral'],
+    'T01': ['Tarde'],
+    'T02': ['Tarde'],
     'Noite': ['N01', 'N02'],
-    'N01': ['Noite', 'Integral'],
-    'N02': ['Noite', 'Integral'],
-    'Integral': ['M01', 'M02', 'T01', 'T02', 'N01', 'N02', 'Manhã', 'Tarde', 'Noite']
+    'N01': ['Noite'],
+    'N02': ['Noite'],
   };
 
   const periodosBloqueados = new Set();
 
   outrasUcs.forEach(item => {
-    // Bloqueia o exato mesmo período
+    // Bloqueia o exato mesmo período (ninguém pode repetir)
     periodosBloqueados.add(item.periodo);
-    // Bloqueia os períodos conflitantes
+    // Bloqueia os períodos conflitantes (genérico vs granular)
     const conflitosDesseItem = conflitosGlobais[item.periodo] || [];
     conflitosDesseItem.forEach(c => periodosBloqueados.add(c));
   });
@@ -325,13 +377,19 @@ const selectedOpps = ref(null);
 // DIDÁTICA: 'watch' fica "vigiando" uma variável.
 // Se 'selectedAreas' mudar, a função abaixo será executada automaticamente.
 // --------------------------------------------------------
-watch(selectedAreas, (novaAreaId) => {
+watch(selectedAreas, async (novaAreaId) => {
   // Limpamos o OPP que estava selecionado, pois a área mudou
   selectedOpps.value = null;
 
+  // Limpamos as UCs selecionadas/salvas dos dias da semana
+  Object.keys(ucsSalvas.value).forEach(dia => {
+    ucsSalvas.value[dia] = [];
+  });
+
   if (!novaAreaId) {
-    // Se não tiver área selecionada, a lista de OPPs fica vazia
+    // Se não tiver área selecionada, a lista de OPPs e UCs fica vazia
     oppsResponsavel.value = [];
+    unidadesCurriculares.value = [];
     return;
   }
 
@@ -346,6 +404,29 @@ watch(selectedAreas, (novaAreaId) => {
     label: opp.cadastro.nome,
     value: opp.idOPP
   }));
+
+  // Buscar as UCs vinculadas a esta área do banco
+  try {
+    const data = await listarUCsPorArea(novaAreaId);
+    unidadesCurriculares.value = data.map(uc => {
+      // Tenta extrair a carga horária da descrição se houver (ex: "80h")
+      let carga = "";
+      if (uc.descricao) {
+        const match = uc.descricao.match(/(\d+h)/i);
+        if (match) {
+          carga = match[1];
+        }
+      }
+      return {
+        idUC: uc.idUC,
+        nome: uc.nome,
+        carga: carga || undefined
+      };
+    });
+  } catch (error) {
+    console.error("Erro ao carregar UCs por área:", error);
+    unidadesCurriculares.value = [];
+  }
 });
 
 // --------------------------------------------------------
@@ -397,80 +478,57 @@ async function carregarOpps() {
   }
 }
 
-// --------------------------------------------------------
-// DIDÁTICA: Função para capturar os dados e salvar no LocalStorage
-// --------------------------------------------------------
-function salvarTurmaNoNavegador() {
+async function salvarTurmaNoNavegador() {
   if (!nomeTurma.value) {
     alert("Por favor, preencha o nome da turma!");
     return;
   }
+  if (!dataInicio.value || !dataFim.value) {
+    alert("Por favor, preencha as datas de início e término!");
+    return;
+  }
+  if (!selectedAreas.value) {
+    alert("Por favor, selecione uma área!");
+    return;
+  }
+  if (!selectedOpps.value) {
+    alert("Por favor, selecione o OPP responsável!");
+    return;
+  }
 
-  // Descobrindo o nome da área selecionada (já que o selectedAreas guarda apenas o ID)
-  const areaObj = areasDisponiveis.value.find(a => a.value === selectedAreas.value);
-  const nomeArea = areaObj ? areaObj.title : "Geral";
-
-  // O LocalStorage só guarda textos. Por isso usamos JSON.stringify()
-  // Mas antes, vamos montar o objeto EXATAMENTE igual ao da tela de Turmas
-  
-  // Vamos formatar a grade (horários)
-  // O formato exigido pela tela de Turmas é: 
-  // [ { periodo: "M01", aulas: { Seg: { disciplina: "Web", professor: "João" } } } ]
-  const gradeFormatada = [];
-  
-  // ucsSalvas é um objeto onde as chaves são dias. Precisamos inverter a lógica para agrupar por período
-  const periodosMapeados = {};
-
-  const mapaDias = {
-    segunda: "Seg",
-    terca: "Ter",
-    quarta: "Qua",
-    quinta: "Qui",
-    sexta: "Sex",
-    sabado: "Sáb"
-  };
-
-  for (const [diaCompleto, listaUcs] of Object.entries(ucsSalvas.value)) {
-    const diaCurto = mapaDias[diaCompleto];
+  const horarios = [];
+  for (const [diaSemana, listaUcs] of Object.entries(ucsSalvas.value)) {
     for (const ucItem of listaUcs) {
-      const periodoDaUc = ucItem.periodo; // ex: "M1" ou "Manhã"
-      if (!periodosMapeados[periodoDaUc]) {
-        periodosMapeados[periodoDaUc] = { aulas: {} };
-      }
-      
-      periodosMapeados[periodoDaUc].aulas[diaCurto] = {
-        disciplina: ucItem.uc,
-        professor: "A definir" // Como não escolhemos professor na tela, mockamos aqui
-      };
+      if (!ucItem.periodo) continue;
+      horarios.push({
+        diaSemana,
+        periodo: ucItem.periodo,
+        nomeUC: ucItem.uc,
+      });
     }
   }
 
-  for (const [periodoNome, dadosPeriodo] of Object.entries(periodosMapeados)) {
-    gradeFormatada.push({
-      periodo: periodoNome,
-      aulas: dadosPeriodo.aulas
-    });
+  if (horarios.length === 0) {
+    alert("Configure ao menos uma UC com período na grade semanal!");
+    return;
   }
 
-  const novaTurma = {
-    label: nomeTurma.value,
-    value: "turma-" + Date.now(), // Geramos um ID único baseado na data atual
-    modalidade: tipoCurso.value,
-    siglas: gradeFormatada.length > 0 ? gradeFormatada[0].periodo : "N/D", // Pega o 1º período como sigla
-    areas: [nomeArea], // Na tela de turmas, areas é um array
-    grade: gradeFormatada
-  };
-
-  // Pegar as turmas que já existem no localStorage (se houver)
-  // Se não existir, iniciamos com um array vazio []
-  const turmasSalvas = JSON.parse(localStorage.getItem('novasTurmas')) || [];
-  turmasSalvas.push(novaTurma);
-
-  // Salvar a lista atualizada de volta no armazenamento do navegador
-  localStorage.setItem('novasTurmas', JSON.stringify(turmasSalvas));
-
-  // DIDÁTICA: Usamos o router para enviar o usuário para a página de listagem
-  router.push('/turmas');
+  try {
+    await criarTurma({
+      nome: nomeTurma.value,
+      tipoCurso: tipoCurso.value,
+      dataInicio: dataInicio.value,
+      dataTermino: dataFim.value,
+      idOPP: selectedOpps.value,
+      idArea: selectedAreas.value,
+      aulasSemana: aulasPorSemana.value,
+      totalAulas: totalAulas.value,
+      horarios,
+    });
+    router.push('/turmas');
+  } catch (error) {
+    alert(error.message || "Erro ao criar turma");
+  }
 }
 
 const periodoDescricoes = {
@@ -480,12 +538,18 @@ const periodoDescricoes = {
   'T02': 'Tarde - Depois do intervalo',
   'N01': 'Noite - Antes do intervalo',
   'N02': 'Noite - Depois do intervalo',
-  'Manhã': 'Período da Manhã',
-  'Tarde': 'Período da Tarde',
-  'Noite': 'Período da Noite',
-  'INT': 'Período Integral',
-  'Integral': 'Período Integral'
+  'Manhã': 'Período da Manhã inteira',
+  'Tarde': 'Período da Tarde inteira',
+  'Noite': 'Período da Noite inteira',
+  'INT_MT': 'Integral (Manhã + Tarde)',
+  'INT_MN': 'Integral (Manhã + Noite)',
+  'INT_TN': 'Integral (Tarde + Noite)',
 };
+
+// Helper: verifica se um período é do tipo integral
+function isIntegral(periodo) {
+  return periodo && periodo.startsWith('INT_');
+}
 </script>
 
 <template>
@@ -684,11 +748,11 @@ const periodoDescricoes = {
                     <v-icon icon="mdi-close" size="18" color="#333" class="cursor-pointer ml-1"
                       @click="removerPeriodo(dia.value)"></v-icon>
                   </div>
-                  <!-- Se for Integral -->
-                  <div v-else-if="selectedPeriodo[dia.value] === 'INT'"
+                  <!-- Se for Integral (qualquer combinação) -->
+                  <div v-else-if="isIntegral(selectedPeriodo[dia.value])"
                     class="w-full rounded py-2 px-2 mb-2 flex items-center justify-center gap-1 border bg-integral">
                     <v-icon icon="mdi-circle" size="8" color="#10B981"></v-icon>
-                    <span class="text-sm font-bold" style="color: #333">Integral</span>
+                    <span class="text-[11px] font-bold" style="color: #333">{{ integralLabels[selectedPeriodo[dia.value]] }}</span>
                     <v-icon icon="mdi-close" size="18" color="#333" class="cursor-pointer ml-1"
                       @click="removerPeriodo(dia.value)"></v-icon>
                   </div>
@@ -727,25 +791,43 @@ const periodoDescricoes = {
                 </div>
               </div>
               <div v-if="!selectedPeriodo[dia.value]" class="mb-3 space-y-1 text-center pb-4">
-                <p v-for="periodo in periodos" :key="periodo.value"
-                  class="text-[15px] cursor-pointer font-bold transition-colors text-center" :class="{
-                    'text-manha':
-                      selectedPeriodo[dia.value] === 'manha' &&
-                      periodo.value === 'manha',
-                    'text-tarde':
-                      selectedPeriodo[dia.value] === 'tarde' &&
-                      periodo.value === 'tarde',
-                    'text-noite':
-                      selectedPeriodo[dia.value] === 'noite' &&
-                      periodo.value === 'noite',
-                    'text-integral':
-                      selectedPeriodo[dia.value] === 'integral' &&
-                      periodo.value === 'integral',
-                    'text-gray-800 dark:text-white':
-                      selectedPeriodo[dia.value] !== periodo.value,
-                  }" @click="togglePeriodo(dia.value, periodo.value)">
-                  {{ periodo.label }}
-                </p>
+                <!-- Menu principal: Manhã, Tarde, Noite, Integral -->
+                <template v-if="!integralSubMenu[dia.value]">
+                  <p v-for="periodo in periodos" :key="periodo.value"
+                    class="text-[15px] cursor-pointer font-bold transition-colors text-center" :class="{
+                      'text-manha':
+                        selectedPeriodo[dia.value] === 'manha' &&
+                        periodo.value === 'manha',
+                      'text-tarde':
+                        selectedPeriodo[dia.value] === 'tarde' &&
+                        periodo.value === 'tarde',
+                      'text-noite':
+                        selectedPeriodo[dia.value] === 'noite' &&
+                        periodo.value === 'noite',
+                      'text-integral':
+                        periodo.value === 'INT',
+                      'text-gray-800 dark:text-white':
+                        selectedPeriodo[dia.value] !== periodo.value && periodo.value !== 'INT',
+                    }" @click="togglePeriodo(dia.value, periodo.value)">
+                    {{ periodo.label }}
+                  </p>
+                </template>
+                <!-- Sub-menu do Integral: 3 combinações de 2 períodos -->
+                <template v-else>
+                  <p class="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-1">Qual Integral?</p>
+                  <p class="text-[14px] cursor-pointer font-bold text-integral hover:underline" @click="selecionarIntegral(dia.value, 'INT_MT')">
+                    Manhã + Tarde
+                  </p>
+                  <p class="text-[14px] cursor-pointer font-bold text-integral hover:underline" @click="selecionarIntegral(dia.value, 'INT_MN')">
+                    Manhã + Noite
+                  </p>
+                  <p class="text-[14px] cursor-pointer font-bold text-integral hover:underline" @click="selecionarIntegral(dia.value, 'INT_TN')">
+                    Tarde + Noite
+                  </p>
+                  <p class="text-[12px] cursor-pointer font-bold text-gray-400 hover:text-gray-600 mt-1" @click="integralSubMenu[dia.value] = false">
+                    ← Voltar
+                  </p>
+                </template>
               </div>
             </v-card>
           </div>
@@ -850,7 +932,7 @@ const periodoDescricoes = {
           <div v-if="uc.nome.toLowerCase().includes(buscaUC.toLowerCase())"
             class="flex items-center gap-2 mb-2 pb-2 px-4">
             <v-checkbox :model-value="isUCSelected(uc.nome)" @update:model-value="toggleUCSelection(uc.nome)"
-              :label="uc.nome + ' (' + uc.carga + ')'" color="red" hide-details density="compact"
+              :label="uc.carga ? uc.nome + ' (' + uc.carga + ')' : uc.nome" color="red" hide-details density="compact"
               :disabled="!isUCSelected(uc.nome) && periodosDisponiveisPara(uc.nome).length === 0"
               class="flex-1"></v-checkbox>
             <v-select v-if="isUCSelected(uc.nome)" :model-value="getSelectedUCPeriod(uc.nome)"

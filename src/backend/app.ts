@@ -27,6 +27,7 @@ import { DisponibilidadeController } from './modules/disponibilidade/disponibili
 import { OPPController } from './modules/opp/opp.controller.js';
 import { PerfilProfessorController } from './modules/professor/perfil-professor.controller.js';
 import { PerfilController } from './modules/perfil/perfil.controller.js';
+import { TurmaController } from './modules/turma/turma.controller.js';
 
 dotenv.config();
 
@@ -48,6 +49,7 @@ const disponibilidadeController = new DisponibilidadeController();
 const oppController = new OPPController();
 const perfilProfessorController = new PerfilProfessorController();
 const perfilController = new PerfilController();
+const turmaController = new TurmaController();
 
 // ====================== ROTAS DE AUTENTICAÇÃO ======================
 app.post('/api/auth/login', (req, res) => authController.login(req, res));
@@ -121,6 +123,13 @@ app.delete('/api/professor/disponibilidade/:id', (req, res) => disponibilidadeCo
 // O gestor vê todos os professores, e o opp vê apenas os das suas áreas.
 app.get('/api/professores/perfis', authMiddleware(['gestor', 'opp']), (req, res) => perfilProfessorController.listar(req, res));
 app.get('/api/professores/perfis/:idProfessor', authMiddleware(['gestor', 'opp']), (req, res) => perfilProfessorController.perfilCompleto(req, res));
+
+// ====================== ROTAS DE TURMAS ======================
+// Listagem e CRUD das turmas criadas por Gestores e OPPs.
+app.get('/api/turmas', authMiddleware(['gestor', 'opp']), (req, res) => turmaController.listar(req, res));
+app.post('/api/turmas', authMiddleware(['gestor', 'opp']), (req, res) => turmaController.criar(req, res));
+app.put('/api/turmas/:id', authMiddleware(['gestor', 'opp']), (req, res) => turmaController.atualizar(req, res));
+app.delete('/api/turmas/:id', authMiddleware(['gestor', 'opp']), (req, res) => turmaController.excluir(req, res));
 
 // ====================== ROTAS DE MEU PERFIL ======================
 // Permite que qualquer usuário logado edite seu próprio perfil.

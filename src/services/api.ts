@@ -506,6 +506,7 @@ export async function atualizarMeuPerfil(dados: { nome?: string; email?: string;
     if (dados.email) usuarioAtual.email = dados.email;
     if (dados.fotoPerfil !== undefined) usuarioAtual.fotoPerfil = dados.fotoPerfil;
     localStorage.setItem(USER_KEY, JSON.stringify(usuarioAtual));
+    window.dispatchEvent(new Event('usuario-atualizado'));
   }
 
   return result;
@@ -520,6 +521,62 @@ export async function alterarMinhaSenha(senhaAtual: string, novaSenha: string) {
   return request('/api/perfil/senha', {
     method: 'PUT',
     body: JSON.stringify({ senhaAtual, novaSenha }),
+  });
+}
+
+// ============================================================
+// TURMAS — Listagem e CRUD (Gestor / OPP)
+// ============================================================
+
+/**
+ * Lista turmas criadas por Gestores e OPPs.
+ * Suporta filtros: search (texto) e periodo (Todas, Manhã, Tarde, Noite, Integral).
+ */
+export async function listarTurmas(filtros?: { search?: string; periodo?: string }) {
+  const params = new URLSearchParams();
+  if (filtros?.search) params.set('search', filtros.search);
+  if (filtros?.periodo && filtros.periodo !== 'Todas') params.set('periodo', filtros.periodo);
+
+  const query = params.toString();
+  return request(`/api/turmas${query ? `?${query}` : ''}`);
+}
+
+/**
+ * Cria uma nova turma no banco de dados.
+ */
+export async function criarTurma(dados: {
+  nome: string;
+  tipoCurso: string;
+  dataInicio: string;
+  dataTermino: string;
+  idOPP: number;
+  idArea?: number;
+  aulasSemana?: number;
+  totalAulas?: number;
+  horarios: { diaSemana: string; periodo: string; idUC?: number; nomeUC?: string }[];
+}) {
+  return request('/api/turmas', {
+    method: 'POST',
+    body: JSON.stringify(dados),
+  });
+}
+
+/**
+ * Atualiza uma turma existente.
+ */
+export async function editarTurma(id: number, dados: Record<string, unknown>) {
+  return request(`/api/turmas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dados),
+  });
+}
+
+/**
+ * Exclui (desativa) uma turma.
+ */
+export async function excluirTurma(id: number) {
+  return request(`/api/turmas/${id}`, {
+    method: 'DELETE',
   });
 }
 

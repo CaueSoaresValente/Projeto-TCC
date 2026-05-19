@@ -176,18 +176,15 @@ onMounted(() => {
 <template>
   <Menu />
 
-  <div class="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] pb-16">
+  <div class="min-h-screen pb-16">
     <!-- Header com gradiente -->
     <div class="relative overflow-hidden">
-      <div class="absolute inset-0 bg-gradient-to-r opacity-90"></div>
-      <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImEiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCI+PHBhdGggZD0iTTAgMGg2MHY2MEgweiIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjMwIiBjeT0iMzAiIHI9IjEuNSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCBmaWxsPSJ1cmwoI2EpIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIi8+PC9zdmc+')] opacity-30"></div>
-      
       <div class="relative px-4 md:px-10 lg:px-20 xl:px-40 pt-10 pb-24">
         <div class="flex items-center gap-3">
-          <v-icon icon="mdi-account-circle-outline" size="32" class="text-white/80"></v-icon>
-          <div>
-            <h1 class="text-3xl md:text-4xl font-black text-white tracking-tight">Meu Perfil</h1>
-            <p class="text-white/70 text-sm mt-1">Gerencie suas informações pessoais</p>
+          <v-icon icon="mdi-account-circle-outline" size="32" class=""></v-icon>
+          <div class="">
+            <h1 class="text-3xl md:text-4xl font-semibold text-black tracking-tight">Meu Perfil</h1>
+            <p class="text-sm mt-1 text-black">Gerencie suas informações pessoais</p>
           </div>
         </div>
       </div>
@@ -289,10 +286,11 @@ onMounted(() => {
                   label="Digite seu e-mail"
                   variant="filled"
                   hide-details
+                  readonly
                   prepend-inner-icon="mdi-email-outline"
                   class="rounded-lg"
                 ></v-text-field>
-                <p class="text-[11px] text-gray-400 mt-1.5 ml-1">Altere seu endereço de e-mail</p>
+                <p class="text-[11px] text-gray-400 mt-1.5 ml-1">O e-mail é definido pelo administrador</p>
               </div>
 
               <div>
@@ -302,9 +300,9 @@ onMounted(() => {
                   label="Função"
                   variant="filled"
                   hide-details
-                  disabled
+                  readonly
                   prepend-inner-icon="mdi-badge-account-outline"
-                  class="rounded-lg opacity-60"
+                  class="rounded-lg"
                 ></v-text-field>
                 <p v-if="funcao !== 'gestor'" class="text-[11px] text-gray-400 mt-1.5 ml-1">A função é definida pelo administrador</p>
               </div>
@@ -377,7 +375,6 @@ onMounted(() => {
             <v-btn
               @click="salvarTudo"
               :loading="saving"
-              :disabled="novaSenha && !senhasValidas"
               class="w-full md:w-auto text-none font-bold text-white shadow-lg px-8"
               size="large"
               rounded="lg"
@@ -398,7 +395,7 @@ onMounted(() => {
   </div>
 
   <!-- Snackbar de Feedback -->
-  <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="4000" location="bottom right" rounded="lg">
+  <v-snackbar v-model="snackbar" :color="snackbarColor" :timeout="4000" location="top right" rounded="lg">
     <div class="flex items-center gap-2">
       <v-icon :icon="snackbarColor === 'success' ? 'mdi-check-circle' : 'mdi-alert-circle'" size="20"></v-icon>
       <span class="font-bold">{{ snackbarMsg }}</span>

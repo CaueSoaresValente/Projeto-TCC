@@ -198,6 +198,25 @@ const periodoDescricoes = {
   'Integral': 'Período Integral'
 };
 
+function salvar() {
+  const horarios = [];
+  for (const [diaSemana, listaUcs] of Object.entries(ucsSalvas.value)) {
+    for (const ucItem of listaUcs) {
+      if (!ucItem.periodo) continue;
+      horarios.push({
+        diaSemana,
+        periodo: ucItem.periodo,
+        nomeUC: ucItem.uc,
+      });
+    }
+  }
+
+  emit("save", {
+    ...form.value,
+    horarios,
+  });
+}
+
 </script>
 
 <template>
@@ -354,12 +373,12 @@ const periodoDescricoes = {
               <div>
                 <p class="mb-1 font-bold text-xs text-gray-500 uppercase">Aulas/Semana</p>
                 <v-text-field v-model="form.aulasSemana" type="number" variant="filled" density="compact"
-                  hide-details></v-text-field>
+                  hide-details readonly></v-text-field>
               </div>
               <div>
                 <p class="mb-1 font-bold text-xs text-gray-500 uppercase">Total de Aulas</p>
                 <v-text-field v-model="form.totalAulas" type="number" variant="filled" density="compact"
-                  hide-details></v-text-field>
+                  hide-details readonly></v-text-field>
               </div>
             </div>
           </div>
@@ -439,7 +458,7 @@ const periodoDescricoes = {
       <v-card-actions class="pa-4 bg-gray-50 dark:bg-gray-800">
         <v-spacer></v-spacer>
         <v-btn variant="text" color="grey-darken-1" @click="emit('update:modelValue', false)">Cancelar</v-btn>
-        <v-btn color="red-darken-1" class="bg-red-600 text-white px-6" @click="emit('save', form)">Salvar</v-btn>
+        <v-btn color="red-darken-1" class="bg-red-600 text-white px-6" @click="salvar">Salvar</v-btn>
       </v-card-actions>
     </v-card>
 

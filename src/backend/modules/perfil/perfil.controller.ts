@@ -19,7 +19,7 @@ export class PerfilController {
   async meuPerfil(req: Request, res: Response) {
     try {
       const usuario = (req as any).usuario;
-      const result = await this.service.buscarPerfil(usuario.id);
+      const result = await this.service.buscarPerfil(usuario.idUsuario);
       if (!result) return res.status(404).json({ message: 'Usuário não encontrado' });
       return res.status(200).json(result);
     } catch (error: any) {
@@ -35,7 +35,7 @@ export class PerfilController {
     try {
       const usuario = (req as any).usuario;
       const { nome, email, fotoPerfil } = req.body;
-      const result = await this.service.atualizarPerfil(usuario.id, { nome, email, fotoPerfil });
+      const result = await this.service.atualizarPerfil(usuario.idUsuario, { nome, email, fotoPerfil });
       return res.status(200).json(result);
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
@@ -56,7 +56,7 @@ export class PerfilController {
         return res.status(400).json({ message: 'Nova senha é obrigatória' });
       }
 
-      await this.service.alterarSenha(usuario.id, novaSenha);
+      await this.service.alterarSenha(usuario.idUsuario, novaSenha);
       return res.status(200).json({ message: 'Senha alterada com sucesso' });
     } catch (error: any) {
       return res.status(500).json({ message: error.message });
