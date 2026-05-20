@@ -63,4 +63,78 @@ export class TurmaController {
       return res.status(status).json({ message: error.message });
     }
   }
+
+  // ====================== GESTÃO DE PROFESSORES ======================
+
+  async buscarProfessoresElegiveis(req: Request, res: Response) {
+    try {
+      const usuario = (req as any).usuario;
+      const idTurma = Number(req.params.id);
+      const { idUC, diaSemana, periodo } = req.query;
+
+      if (!idUC || !diaSemana || !periodo) {
+        return res.status(400).json({ message: 'Parâmetros idUC, diaSemana e periodo são obrigatórios' });
+      }
+
+      const result = await this.service.buscarProfessoresElegiveis(
+        idTurma,
+        Number(idUC),
+        String(diaSemana),
+        String(periodo),
+        usuario,
+      );
+
+      return res.status(200).json(result);
+    } catch (error: any) {
+      const status = error.message?.includes('permissão') ? 403 : 400;
+      return res.status(status).json({ message: error.message });
+    }
+  }
+
+  async alocarProfessor(req: Request, res: Response) {
+    try {
+      const usuario = (req as any).usuario;
+      const idTurma = Number(req.params.id);
+      const { idProfessor, idUC, diaSemana, periodo } = req.body;
+
+      if (!idProfessor || !idUC || !diaSemana || !periodo) {
+        return res.status(400).json({ message: 'idProfessor, idUC, diaSemana e periodo são obrigatórios' });
+      }
+
+      const result = await this.service.alocarProfessor(
+        idTurma,
+        Number(idProfessor),
+        Number(idUC),
+        String(diaSemana),
+        String(periodo),
+        usuario,
+      );
+      return res.status(201).json(result);
+    } catch (error: any) {
+      const status = error.message?.includes('permissão') ? 403 : 400;
+      return res.status(status).json({ message: error.message });
+    }
+  }
+
+  async desalocarProfessor(req: Request, res: Response) {
+    try {
+      const usuario = (req as any).usuario;
+      const idTurma = Number(req.params.id);
+      const idProfessor = Number(req.params.idProfessor);
+      const { idUC, diaSemana, periodo } = req.query;
+
+      const result = await this.service.desalocarProfessor(
+        idTurma,
+        idProfessor,
+        usuario,
+        idUC ? Number(idUC) : undefined,
+        diaSemana ? String(diaSemana) : undefined,
+        periodo ? String(periodo) : undefined,
+      );
+      return res.status(200).json(result);
+    } catch (error: any) {
+      const status = error.message?.includes('permissão') ? 403 : 400;
+      return res.status(status).json({ message: error.message });
+    }
+  }
 }

@@ -72,6 +72,16 @@ const competenciaEditArea = ref(null);
 const competenciaDeletando = ref(null);
 
 // ====================== CARREGAR DADOS DO BANCO ======================
+const erro = ref("");
+
+function obterMensagemErro(e) {
+  if (!e) return "Erro desconhecido.";
+  const msg = e.message || String(e);
+  if (msg.includes("Failed to fetch") || msg.includes("fetch")) {
+    return "Não foi possível conectar ao servidor. Verifique se o backend está rodando.";
+  }
+  return msg;
+}
 
 // Função que busca todas as áreas do banco
 async function carregarAreas() {
@@ -85,6 +95,7 @@ async function carregarAreas() {
     }));
   } catch (error) {
     console.error("Erro ao carregar áreas:", error);
+    erro.value = obterMensagemErro(error);
   } finally {
     loading.value = false;
   }
@@ -98,9 +109,15 @@ async function carregarCompetencias() {
     dadosCompetencias.value = competencias;
   } catch (error) {
     console.error("Erro ao carregar competências:", error);
+    erro.value = obterMensagemErro(error);
   } finally {
     loading.value = false;
   }
+}
+
+async function carregarDados() {
+  erro.value = "";
+  await Promise.all([carregarAreas(), carregarCompetencias()]);
 }
 
 // ====================== AÇÕES DE ÁREA ======================
@@ -233,8 +250,7 @@ async function confirmarDeleteCompetencia() {
 // ====================== LIFECYCLE ======================
 // onMounted = "quando a tela abrir, faça isso"
 onMounted(async () => {
-  await carregarAreas();
-  await carregarCompetencias();
+  await carregarDados();
 });
 
 // Limpa os campos quando o modal de adicionar competência abre
@@ -279,6 +295,37 @@ watch(dialogAddArea, (val) => {
       </v-chip-group>
     </v-sheet>
     <v-card class="border-t-4 border-red-600 px-8 rounded-lg shadow-lg py-8">
+      <!-- Erro ao carregar dados -->
+      <v-fade-transition>
+        <v-alert
+          v-if="erro"
+          type="warning"
+          variant="tonal"
+          closable
+          icon="mdi-alert-circle-outline"
+          class="mb-6 rounded-xl border-s-4"
+          density="comfortable"
+          @click:close="erro = ''"
+        >
+          <div class="d-flex align-center flex-wrap justify-between gap-3">
+            <div>
+              <span class="font-bold block text-sm">Ops! Ocorreu um contratempo</span>
+              <span class="text-xs">{{ erro }}</span>
+            </div>
+            <v-btn
+              size="small"
+              color="warning"
+              variant="elevated"
+              class="rounded-lg font-bold text-xs"
+              prepend-icon="mdi-refresh"
+              @click="carregarDados"
+            >
+              Tentar novamente
+            </v-btn>
+          </div>
+        </v-alert>
+      </v-fade-transition>
+
       <div class="flex flex-col-reverse sm:flex-row justify-between gap-4">
         <v-text-field
           label="Pesquisar..."

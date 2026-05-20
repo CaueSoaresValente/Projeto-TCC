@@ -582,7 +582,7 @@ function isIntegral(periodo) {
             Áreas
           </p>
           <!-- DIDÁTICA: Removemos o atributo 'multiple' para virar seleção única -->
-          <v-select v-model="selectedAreas" chips label="Selecione..." :items="areasDisponiveis"
+          <v-select v-model="selectedAreas" placeholder="Selecione..." persistent-placeholder :items="areasDisponiveis"
             item-title="title" item-value="value" variant="filled" hide-details></v-select>
         </div>
       </div>
@@ -593,7 +593,7 @@ function isIntegral(periodo) {
             Opp Responsável
           </p>
           <!-- DIDÁTICA: A lista ':items' agora será preenchida dinamicamente pelo 'watch' -->
-          <v-select v-model="selectedOpps" chips label="Selecione uma Área primeiro..." :items="oppsResponsavel" item-title="label"
+          <v-select v-model="selectedOpps" placeholder="Selecione uma Área primeiro..." persistent-placeholder :items="oppsResponsavel" item-title="label"
             item-value="value" variant="filled" hide-details :disabled="!selectedAreas"></v-select>
         </div>
 

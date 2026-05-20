@@ -131,6 +131,12 @@ app.post('/api/turmas', authMiddleware(['gestor', 'opp']), (req, res) => turmaCo
 app.put('/api/turmas/:id', authMiddleware(['gestor', 'opp']), (req, res) => turmaController.atualizar(req, res));
 app.delete('/api/turmas/:id', authMiddleware(['gestor', 'opp']), (req, res) => turmaController.excluir(req, res));
 
+// ====================== GESTÃO DE PROFESSORES EM TURMAS ======================
+// Busca professores elegíveis para um slot, aloca e desaloca professores.
+app.get('/api/turmas/:id/professores-elegiveis', authMiddleware(['gestor', 'opp']), (req, res) => turmaController.buscarProfessoresElegiveis(req, res));
+app.post('/api/turmas/:id/professores', authMiddleware(['gestor', 'opp']), (req, res) => turmaController.alocarProfessor(req, res));
+app.delete('/api/turmas/:id/professores/:idProfessor', authMiddleware(['gestor', 'opp']), (req, res) => turmaController.desalocarProfessor(req, res));
+
 // ====================== ROTAS DE MEU PERFIL ======================
 // Permite que qualquer usuário logado edite seu próprio perfil.
 app.get('/api/perfil', authMiddleware(['gestor', 'opp', 'professor']), (req, res) => perfilController.meuPerfil(req, res));

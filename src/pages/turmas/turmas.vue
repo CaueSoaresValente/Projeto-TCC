@@ -55,11 +55,13 @@ async function salvarTurma(form) {
             dataInicio: form.dataInicio,
             dataTermino: form.dataFim,
             horarios: form.horarios,
+            idOPP: form.idOPP,
+            idArea: form.idArea,
         });
         editModal.value = false;
         await carregarTurmas();
     } catch (e) {
-        alert(e.message || "Erro ao salvar turma");
+        alert(formatarErro(e.message) || "Erro ao salvar turma");
     }
 }
 
@@ -69,7 +71,7 @@ async function excluirTurmaCard(turma) {
         await excluirTurma(turma.idTurma);
         await carregarTurmas();
     } catch (e) {
-        alert(e.message || "Erro ao excluir turma");
+        alert(formatarErro(e.message) || "Erro ao excluir turma");
     }
 }
 
@@ -86,6 +88,23 @@ async function carregarTurmas() {
     } finally {
         carregando.value = false;
     }
+}
+
+function formatarErro(mensagem) {
+    if (!mensagem) return "";
+    const msgLower = mensagem.toLowerCase();
+    
+    if (msgLower.includes("failed to fetch") || msgLower.includes("network error") || msgLower.includes("connect")) {
+        return "Não foi possível conectar ao servidor. Verifique se o backend está ativo e tente novamente.";
+    }
+    if (msgLower.includes("siglas is not defined") || msgLower.includes("is not defined") || msgLower.includes("referenceerror")) {
+        return "Erro interno no servidor: dados de sigla ou período não foram processados corretamente.";
+    }
+    if (msgLower.includes("token") || msgLower.includes("não autorizado") || msgLower.includes("unauthorized") || msgLower.includes("acesso negado")) {
+        return "Sua sessão expirou ou você não tem permissão para acessar esta página. Por favor, faça login novamente.";
+    }
+    
+    return mensagem;
 }
 
 onMounted(() => {
@@ -142,8 +161,8 @@ const filteredTurmas = computed(() => {
 
 <template>
     <Menu />
-    <v-container class="max-w-[1600px] w-full mx-auto p-0 md:px-4 lg:px-50">
-        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-5">
+    <v-container class="max-w-[1600px] w-full mx-auto md:px-4 lg:px-50">
+        <div class="grid grid-cols-1 md:grid-cols-2  xl:grid-cols-3 2xl:grid-cols-5 gap-5">
 
             <div class="col-span-full self-start">
                 <div class="flex items-center justify-between">
@@ -159,8 +178,41 @@ const filteredTurmas = computed(() => {
                     <v-chip value="Noite" variant="tonal">Noite</v-chip>
                     <v-chip value="Integral" variant="tonal">Integral</v-chip>
                 </v-chip-group>
-                <p v-if="erro" class="text-red-600 text-sm mt-2">{{ erro }}</p>
-                <p v-else-if="carregando" class="text-gray-500 text-sm mt-2">Carregando turmas...</p>
+                
+                <v-fade-transition>
+                    <v-alert
+                        v-if="erro"
+                        type="warning"
+                        variant="tonal"
+                        closable
+                        icon="mdi-alert-circle-outline"
+                        class="mt-4 rounded-xl border-s-4"
+                        density="comfortable"
+                        @click:close="erro = ''"
+                    >
+                        <div class="d-flex align-center flex-wrap justify-between gap-3">
+                            <div>
+                                <span class="font-bold block text-sm">Ops! Ocorreu um contratempo</span>
+                                <span class="text-xs">{{ formatarErro(erro) }}</span>
+                            </div>
+                            <v-btn
+                                size="small"
+                                color="warning"
+                                variant="elevated"
+                                class="rounded-lg font-bold text-xs"
+                                prepend-icon="mdi-refresh"
+                                @click="carregarTurmas"
+                            >
+                                Tentar novamente
+                            </v-btn>
+                        </div>
+                    </v-alert>
+                </v-fade-transition>
+
+                <div v-if="carregando" class="flex items-center gap-2 text-gray-500 text-sm mt-4 animate-pulse">
+                    <v-progress-circular indeterminate size="18" width="2" color="red"></v-progress-circular>
+                    <span>Carregando turmas...</span>
+                </div>
             </div>
 
             <v-card v-for="turma in filteredTurmas" :key="turma.value" class="border-t-6 h-full flex flex-col justify-between"

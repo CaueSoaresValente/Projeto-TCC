@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, onMounted } from "vue";
 
 const props = defineProps({
   modelValue: Boolean,
@@ -10,14 +10,103 @@ const emit = defineEmits(["update:modelValue", "save"]);
 
 const form = ref({
   label: "",
-  areas: [],
+  idArea: null,
   modalidade: "tec",
-  opps: [],
-  siglas: "",
+  idOPP: null,
   dataInicio: "",
   dataFim: "",
   aulasSemana: 0,
   totalAulas: 0,
+});
+
+const todosOpps = ref([]);
+const oppsList = ref([]);
+const areasDisponiveis = ref([]);
+const unidadesCurriculares = ref([]);
+
+async function carregarAreas() {
+  try {
+    const response = await fetch("http://localhost:3001/api/areas");
+    const data = await response.json();
+    areasDisponiveis.value = data.map(area => ({
+      title: area.nome,
+      value: area.idArea
+    }));
+  } catch (error) {
+    console.error("Erro ao carregar áreas:", error);
+  }
+}
+
+async function carregarOpps() {
+  try {
+    const response = await fetch("http://localhost:3001/api/opps");
+    const data = await response.json();
+    todosOpps.value = data;
+    filtrarOpps();
+  } catch (error) {
+    console.error("Erro ao carregar OPPs:", error);
+  }
+}
+
+function filtrarOpps() {
+  const areaId = form.value.idArea;
+  if (!areaId) {
+    oppsList.value = [];
+    return;
+  }
+  const oppsFiltrados = todosOpps.value.filter(opp => {
+    return opp.oppAreas && opp.oppAreas.some(oa => oa.idArea === areaId);
+  });
+  oppsList.value = oppsFiltrados.map(opp => ({
+    label: opp.cadastro.nome,
+    value: opp.idOPP
+  }));
+}
+
+async function carregarUCs() {
+  const areaId = form.value.idArea;
+  if (!areaId) {
+    unidadesCurriculares.value = [];
+    return;
+  }
+  try {
+    const response = await fetch(`http://localhost:3001/api/competencias/area/${areaId}`);
+    const data = await response.json();
+    unidadesCurriculares.value = data.map(uc => {
+      let carga = "";
+      if (uc.descricao) {
+        const match = uc.descricao.match(/(\d+h)/i);
+        if (match) {
+          carga = match[1];
+        }
+      }
+      return {
+        nome: uc.nome,
+        carga: carga || undefined
+      };
+    });
+  } catch (error) {
+    console.error("Erro ao carregar UCs por área:", error);
+    unidadesCurriculares.value = [];
+  }
+}
+
+// Observa mudanças na área para filtrar OPPs e UCs
+watch(() => form.value.idArea, (novaAreaId, antigaAreaId) => {
+  filtrarOpps();
+  carregarUCs();
+  // Limpa a seleção de OPP e UCs apenas se for uma troca intencional (antigaAreaId !== undefined)
+  if (antigaAreaId !== undefined && antigaAreaId !== null && novaAreaId !== antigaAreaId) {
+    form.value.idOPP = null;
+    Object.keys(ucsSalvas.value).forEach(dia => {
+      ucsSalvas.value[dia] = [];
+    });
+  }
+});
+
+onMounted(() => {
+  carregarAreas();
+  carregarOpps();
 });
 
 const selectedPeriodo = ref({
@@ -38,7 +127,7 @@ const ucsSalvas = ref({
   sabado: [],
 });
 
-const areasDisponiveis = ["Tecnologia", "Software", "Manutenção", "Hardware", "Elétrica", "Automação", "Cloud", "Web", "Redes", "Infra", "Mobile", "Gestão", "Mecânica", "Design"];
+// Áreas carregadas dinamicamente
 const periodos = [
   { label: "Manhã", value: "manha", color: "#F59E0B" },
   { label: "Tarde", value: "tarde", color: "#3B82F6" },
@@ -55,16 +144,7 @@ const diasDaSemana = [
   { label: "Sábado", value: "sabado" },
 ];
 
-const unidadesCurriculares = [
-  { nome: "Programação Web", carga: "80h" },
-  { nome: "Banco de Dados", carga: "60h" },
-  { nome: "Redes de Computadores", carga: "40h" },
-  { nome: "Lógica de Programação", carga: "80h" },
-  { nome: "Sistemas Operacionais", carga: "40h" },
-  { nome: "Segurança da Informação", carga: "40h" },
-  { nome: "Desenvolvimento Mobile", carga: "60h" },
-  { nome: "Hardware e Manutenção", carga: "40h" },
-];
+// Unidades Curriculares carregadas dinamicamente
 
 const modalUC = ref(false);
 const diaDoModal = ref(null);
@@ -74,12 +154,11 @@ watch(() => props.turma, (newTurma) => {
   if (newTurma) {
     form.value = {
       label: newTurma.label,
-      areas: newTurma.areas || [],
+      idArea: newTurma.idArea || null,
       modalidade: newTurma.modalidade,
-      opps: newTurma.opps || [],
-      siglas: newTurma.siglas || "",
-      dataInicio: newTurma.dataInicio || "",
-      dataFim: newTurma.dataFim || "",
+      idOPP: newTurma.idOPP || null,
+      dataInicio: newTurma.dataInicioISO || newTurma.dataInicio || "",
+      dataFim: newTurma.dataTerminoISO || newTurma.dataFim || "",
       aulasSemana: newTurma.aulasSemana || 4,
       totalAulas: newTurma.totalAulas || 16,
     };
@@ -316,13 +395,14 @@ function salvar() {
               </div>
               <div>
                 <p class="mb-1 font-bold text-xs text-gray-500 uppercase">Áreas</p>
-                <v-select v-model="form.areas" :items="areasDisponiveis" multiple chips variant="filled"
-                  density="compact" hide-details></v-select>
+                <v-select v-model="form.idArea" :items="areasDisponiveis" item-title="title" item-value="value" variant="filled"
+                  density="compact" hide-details placeholder="Selecione..." persistent-placeholder></v-select>
               </div>
               <div>
-                <p class="mb-1 font-bold text-xs text-gray-500 uppercase">Sigla/Período</p>
-                <v-text-field v-model="form.siglas" placeholder="Ex: M01, T02, INT" variant="filled" density="compact"
-                  hide-details></v-text-field>
+                <p class="mb-1 font-bold text-xs text-gray-500 uppercase">Opp Responsável</p>
+                <v-select v-model="form.idOPP" :items="oppsList" item-title="label" item-value="value"
+                  variant="filled" density="compact" hide-details :disabled="!form.idArea"
+                  placeholder="Selecione uma Área primeiro..." persistent-placeholder></v-select>
               </div>
             </div>
 

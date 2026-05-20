@@ -580,3 +580,65 @@ export async function excluirTurma(id: number) {
   });
 }
 
+// ====================== GESTÃO DE PROFESSORES EM TURMAS ======================
+
+/**
+ * Busca professores elegíveis para um slot específico da turma.
+ * Aplica filtros de competência, disponibilidade, ocupação e conflito.
+ */
+export async function buscarProfessoresElegiveis(
+  idTurma: number,
+  idUC: number,
+  diaSemana: string,
+  periodo: string
+) {
+  const params = new URLSearchParams({
+    idUC: String(idUC),
+    diaSemana,
+    periodo,
+  });
+  return request(`/api/turmas/${idTurma}/professores-elegiveis?${params.toString()}`);
+}
+
+/**
+ * Aloca um professor a um slot específico da turma.
+ */
+export async function alocarProfessor(
+  idTurma: number,
+  idProfessor: number,
+  idUC: number,
+  diaSemana: string,
+  periodo: string
+) {
+  return request(`/api/turmas/${idTurma}/professores`, {
+    method: 'POST',
+    body: JSON.stringify({ idProfessor, idUC, diaSemana, periodo }),
+  });
+}
+
+/**
+ * Remove um professor de uma turma.
+ * Se idUC, diaSemana e periodo forem fornecidos, remove apenas daquele slot.
+ * Caso contrário, remove todas as alocações do professor na turma.
+ */
+export async function desalocarProfessor(
+  idTurma: number,
+  idProfessor: number,
+  idUC?: number,
+  diaSemana?: string,
+  periodo?: string
+) {
+  let url = `/api/turmas/${idTurma}/professores/${idProfessor}`;
+  if (idUC && diaSemana && periodo) {
+    const params = new URLSearchParams({
+      idUC: String(idUC),
+      diaSemana,
+      periodo,
+    });
+    url += `?${params.toString()}`;
+  }
+  return request(url, {
+    method: 'DELETE',
+  });
+}
+

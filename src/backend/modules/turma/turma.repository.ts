@@ -12,6 +12,7 @@ const RELATIONS = [
   'professorTurmas',
   'professorTurmas.professor',
   'professorTurmas.professor.cadastro',
+  'professorTurmas.turmaUC',
 ] as const;
 
 export class TurmaRepository {

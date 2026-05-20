@@ -30,9 +30,22 @@ const perfilSelecionado = ref<any>(null);
 const tabAtiva = ref("resumo");
 
 // ====================== CARREGAR PROFESSORES ======================
+const erro = ref("");
+
+function obterMensagemErro(e: any): string {
+  if (!e) return "Erro desconhecido.";
+  const msg = e.message || String(e);
+  if (msg.includes("Failed to fetch") || msg.includes("fetch")) {
+    return "Não foi possível conectar ao servidor. Verifique se o backend está rodando.";
+  }
+  return msg;
+}
+
 // Quando a página abre, busca a lista de professores do backend.
 // O backend já filtra automaticamente (gestor vê todos, opp vê os das suas áreas).
-onMounted(async () => {
+async function carregarProfessores() {
+  loading.value = true;
+  erro.value = "";
   try {
     const data = await listarProfessoresPerfis();
     professores.value = data;
@@ -47,9 +60,14 @@ onMounted(async () => {
     areasDisponiveis.value = [...todasAreas].sort();
   } catch (error: any) {
     console.error("Erro ao carregar professores:", error.message);
+    erro.value = obterMensagemErro(error);
   } finally {
     loading.value = false;
   }
+}
+
+onMounted(async () => {
+  await carregarProfessores();
 });
 
 // ====================== FILTRAR PROFESSORES ======================
@@ -187,6 +205,37 @@ const getIniciais = (nome: string) => {
         Visualize as informações completas de cada professor
       </p>
     </div>
+
+    <!-- Erro ao carregar professores -->
+    <v-fade-transition>
+      <v-alert
+        v-if="erro"
+        type="warning"
+        variant="tonal"
+        closable
+        icon="mdi-alert-circle-outline"
+        class="mx-auto max-w-4xl mb-8 rounded-xl border-s-4"
+        density="comfortable"
+        @click:close="erro = ''"
+      >
+        <div class="d-flex align-center flex-wrap justify-between gap-3">
+          <div>
+            <span class="font-bold block text-sm">Ops! Ocorreu um contratempo</span>
+            <span class="text-xs">{{ erro }}</span>
+          </div>
+          <v-btn
+            size="small"
+            color="warning"
+            variant="elevated"
+            class="rounded-lg font-bold text-xs"
+            prepend-icon="mdi-refresh"
+            @click="carregarProfessores"
+          >
+            Tentar novamente
+          </v-btn>
+        </div>
+      </v-alert>
+    </v-fade-transition>
 
     <!-- Filtros -->
     <v-card class="mx-auto max-w-4xl mb-8 border-t-4 border-t-red-500" elevation="2">
