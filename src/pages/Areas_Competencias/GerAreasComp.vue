@@ -14,7 +14,7 @@
 // ============================================================
 
 import Menu from "@/components/Menu.vue";
-import { ref, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 
 // Importa as funções que falam com o backend
 import {
@@ -26,7 +26,22 @@ import {
   criarCompetencia,
   editarCompetencia,
   excluirCompetencia,
+  getUsuarioLogado,
 } from "@/services/api";
+
+// ====================== DADOS DO USUÁRIO LOGADO ======================
+const usuarioLogado = getUsuarioLogado();
+const isOpp = computed(() => usuarioLogado?.funcao === 'opp');
+const todosOpps = ref([]);
+
+// Áreas que o OPP pode usar nos selects de UC
+const areasPermitidas = computed(() => {
+  if (!isOpp.value) return dadosAreas.value;
+  const oppLogado = todosOpps.value.find(o => o.idCadastro === usuarioLogado?.idUsuario);
+  if (!oppLogado || !oppLogado.oppAreas) return [];
+  const idsPermitidos = oppLogado.oppAreas.map(oa => oa.idArea);
+  return dadosAreas.value.filter(a => idsPermitidos.includes(a.idArea));
+});
 
 // ====================== ESTADO DA TELA ======================
 
@@ -115,9 +130,18 @@ async function carregarCompetencias() {
   }
 }
 
+async function carregarOpps() {
+  try {
+    const response = await fetch("http://localhost:3001/api/opps");
+    todosOpps.value = await response.json();
+  } catch (error) {
+    console.error("Erro ao carregar OPPs:", error);
+  }
+}
+
 async function carregarDados() {
   erro.value = "";
-  await Promise.all([carregarAreas(), carregarCompetencias()]);
+  await Promise.all([carregarAreas(), carregarCompetencias(), carregarOpps()]);
 }
 
 // ====================== AÇÕES DE ÁREA ======================
@@ -333,7 +357,7 @@ watch(dialogAddArea, (val) => {
           variant="filled"
           hide-details
         ></v-text-field>
-        <v-btn class="h-14 bg-red-500! text-white" @click="selecionado == 'Áreas' ? dialogAddArea = true : dialogAdd = true"
+        <v-btn v-if="!(isOpp && selecionado === 'Áreas')" class="h-14 bg-red-500! text-white" @click="selecionado == 'Áreas' ? dialogAddArea = true : dialogAdd = true"
           >Adicionar {{ selecionado == 'Áreas' ? 'Área' : 'UC' }}</v-btn
         >
       </div>
@@ -477,7 +501,7 @@ watch(dialogAddArea, (val) => {
           <v-select
             v-model="areaSelecionada"
             label="Área"
-            :items="dadosAreas"
+            :items="areasPermitidas"
             item-title="nome"
             item-value="idArea"
             variant="outlined"
@@ -601,7 +625,7 @@ watch(dialogAddArea, (val) => {
           <v-select
             v-model="competenciaEditArea"
             label="Área"
-            :items="dadosAreas"
+            :items="areasPermitidas"
             item-title="nome"
             item-value="idArea"
             variant="outlined"

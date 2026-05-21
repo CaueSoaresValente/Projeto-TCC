@@ -2,7 +2,11 @@
 import Menu from "@/components/Menu.vue";
 import { ref, onMounted, watch, computed } from "vue";
 import { useRouter } from "vue-router";
-import { criarTurma, listarUCsPorArea } from "@/services/api";
+import { criarTurma, listarUCsPorArea, getUsuarioLogado } from "@/services/api";
+
+// ====================== DADOS DO USUÁRIO LOGADO ======================
+const usuarioLogado = getUsuarioLogado();
+const isOpp = computed(() => usuarioLogado?.funcao === 'opp');
 
 const user = ref({
   name: "User",
@@ -381,8 +385,10 @@ const selectedOpps = ref(null);
 // Se 'selectedAreas' mudar, a função abaixo será executada automaticamente.
 // --------------------------------------------------------
 watch(selectedAreas, async (novaAreaId) => {
-  // Limpamos o OPP que estava selecionado, pois a área mudou
-  selectedOpps.value = null;
+  // Limpamos o OPP selecionado, pois a área mudou (exceto se for OPP logado)
+  if (!isOpp.value) {
+    selectedOpps.value = null;
+  }
 
   // Limpamos as UCs selecionadas/salvas dos dias da semana
   Object.keys(ucsSalvas.value).forEach(dia => {
@@ -391,22 +397,27 @@ watch(selectedAreas, async (novaAreaId) => {
 
   if (!novaAreaId) {
     // Se não tiver área selecionada, a lista de OPPs e UCs fica vazia
-    oppsResponsavel.value = [];
+    if (!isOpp.value) {
+      oppsResponsavel.value = [];
+    }
     unidadesCurriculares.value = [];
     return;
   }
 
-  // Filtramos os OPPs: pegamos apenas aqueles que têm a 'novaAreaId' nas suas áreas
-  const oppsFiltrados = todosOpps.value.filter(opp => {
-    // opp.oppAreas é a lista de áreas que aquele OPP possui
-    return opp.oppAreas && opp.oppAreas.some(oa => oa.idArea === novaAreaId);
-  });
+  // Só filtra OPPs dinamicamente se NÃO for OPP logado
+  if (!isOpp.value) {
+    // Filtramos os OPPs: pegamos apenas aqueles que têm a 'novaAreaId' nas suas áreas
+    const oppsFiltrados = todosOpps.value.filter(opp => {
+      // opp.oppAreas é a lista de áreas que aquele OPP possui
+      return opp.oppAreas && opp.oppAreas.some(oa => oa.idArea === novaAreaId);
+    });
 
-  // Traduzimos os OPPs filtrados para o formato do v-select
-  oppsResponsavel.value = oppsFiltrados.map(opp => ({
-    label: opp.cadastro.nome,
-    value: opp.idOPP
-  }));
+    // Traduzimos os OPPs filtrados para o formato do v-select
+    oppsResponsavel.value = oppsFiltrados.map(opp => ({
+      label: opp.cadastro.nome,
+      value: opp.idOPP
+    }));
+  }
 
   // Buscar as UCs vinculadas a esta área do banco
   try {
@@ -437,9 +448,23 @@ watch(selectedAreas, async (novaAreaId) => {
 // pelo Vue.js assim que este componente (página) aparece na tela.
 // É o local ideal para fazermos a conexão com o backend (API).
 // --------------------------------------------------------
-onMounted(() => {
-  carregarAreas();
-  carregarOpps();
+onMounted(async () => {
+  await carregarAreas();
+  await carregarOpps();
+
+  // Se o usuário logado for OPP, filtra áreas e auto-preenche o campo OPP Responsável
+  if (isOpp.value) {
+    const oppLogado = todosOpps.value.find(o => o.idCadastro === usuarioLogado?.idUsuario);
+    if (oppLogado && oppLogado.oppAreas) {
+      // Filtra as áreas disponíveis para mostrar apenas as do OPP
+      const idsAreasPermitidas = oppLogado.oppAreas.map(oa => oa.idArea);
+      areasDisponiveis.value = areasDisponiveis.value.filter(a => idsAreasPermitidas.includes(a.value));
+
+      // Preenche automaticamente o OPP Responsável com o próprio usuário
+      selectedOpps.value = oppLogado.idOPP;
+      oppsResponsavel.value = [{ label: oppLogado.cadastro.nome, value: oppLogado.idOPP }];
+    }
+  }
 });
 
 // --------------------------------------------------------
@@ -659,7 +684,7 @@ function isIntegral(periodo) {
           </p>
           <!-- DIDÁTICA: A lista ':items' agora será preenchida dinamicamente pelo 'watch' -->
           <v-select v-model="selectedOpps" placeholder="Selecione uma Área primeiro..." persistent-placeholder :items="oppsResponsavel" item-title="label"
-            item-value="value" variant="filled" hide-details :disabled="!selectedAreas"></v-select>
+            item-value="value" variant="filled" hide-details :disabled="!selectedAreas || isOpp"></v-select>
         </div>
 
         <div class="">

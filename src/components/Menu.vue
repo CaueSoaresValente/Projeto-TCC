@@ -213,11 +213,6 @@ const menuOPP = [
     to: "/visualizarprofessores",
     icon: "mdi-account-eye-outline",
   },
-  {
-    label: "Gerenciar Cadastros",
-    to: "/gerenciarcadastros",
-    icon: "mdi-account-cog-outline",
-  },
 ];
 
 const menuProfessor = [

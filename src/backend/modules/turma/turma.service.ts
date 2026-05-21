@@ -662,16 +662,13 @@ export class TurmaService {
       // 4. Verificar conflito de horário (outra turma no mesmo dia+período)
       const turmasDoProf = await profTurmaRepo.find({
         where: { idProfessor: prof.idProfessor, status: true },
-        relations: ['turma', 'turma.turmaUCs'],
+        relations: ['turmaUC', 'turma'],
       });
 
       let temConflito = false;
       for (const pt of turmasDoProf) {
         if (!pt.turma?.status) continue;
-        const ucsConflitantes = (pt.turma.turmaUCs || []).filter(
-          tuc => tuc.diaSemana.toLowerCase() === diaNorm && tuc.periodo === periodo
-        );
-        if (ucsConflitantes.length > 0) {
+        if (pt.turmaUC && pt.turmaUC.diaSemana.toLowerCase() === diaNorm && pt.turmaUC.periodo === periodo) {
           temConflito = true;
           break;
         }
@@ -685,7 +682,6 @@ export class TurmaService {
           'disponibilidades',
           'professorTurmas',
           'professorTurmas.turma',
-          'professorTurmas.turma.turmaUCs',
         ],
       });
 
@@ -695,8 +691,8 @@ export class TurmaService {
       let periodosAlocados = 0;
       if (profCompleto.professorTurmas) {
         for (const pt of profCompleto.professorTurmas) {
-          if (pt.status && pt.turma?.status && pt.turma?.turmaUCs) {
-            periodosAlocados += pt.turma.turmaUCs.length;
+          if (pt.status && pt.turma?.status) {
+            periodosAlocados += 1;
           }
         }
       }
