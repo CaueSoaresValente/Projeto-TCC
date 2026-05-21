@@ -475,6 +475,13 @@ export async function buscarPerfilProfessor(idProfessor: number) {
   return request(`/api/professores/perfis/${idProfessor}`);
 }
 
+/**
+ * Busca o calendário de aulas e ocupação do professor logado.
+ */
+export async function buscarMeuCalendario() {
+  return request('/api/professor/calendario');
+}
+
 // ============================================================
 // MEU PERFIL — Edição do próprio perfil (todos os perfis)
 // ============================================================

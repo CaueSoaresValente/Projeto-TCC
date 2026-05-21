@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, computed } from "vue";
 
 const props = defineProps({
   modelValue: Boolean,
@@ -135,6 +135,28 @@ const periodos = [
   { label: "Integral", value: "INT", color: "#10B981" },
 ];
 
+// Controla quais dias estão mostrando o sub-menu de Integral
+const integralSubMenu = ref({
+  segunda: false,
+  terca: false,
+  quarta: false,
+  quinta: false,
+  sexta: false,
+  sabado: false,
+});
+
+// Labels bonitos para exibir no badge do card
+const integralLabels = {
+  'INT_MT': 'Manhã + Tarde',
+  'INT_MN': 'Manhã + Noite',
+  'INT_TN': 'Tarde + Noite',
+};
+
+// Helper: verifica se um período é do tipo integral
+function isIntegral(periodo) {
+  return periodo && periodo.startsWith('INT_');
+}
+
 const diasDaSemana = [
   { label: "Segunda-feira", value: "segunda" },
   { label: "Terça-feira", value: "terca" },
@@ -167,16 +189,21 @@ watch(() => props.turma, (newTurma) => {
     resetPeriodos();
     if (newTurma.grade) {
       newTurma.grade.forEach(slot => {
-        const p = slot.periodo.toLowerCase();
+        const p = slot.periodo;
+        const pLower = p.toLowerCase();
         const diaMap = { 'Seg': 'segunda', 'Ter': 'terca', 'Qua': 'quarta', 'Qui': 'quinta', 'Sex': 'sexta', 'Sáb': 'sabado' };
 
         Object.keys(slot.aulas || {}).forEach(dia => {
           const diaKey = diaMap[dia];
           if (diaKey) {
-            if (p.startsWith('m')) selectedPeriodo.value[diaKey] = 'manha';
-            else if (p.startsWith('t')) selectedPeriodo.value[diaKey] = 'tarde';
-            else if (p.startsWith('n')) selectedPeriodo.value[diaKey] = 'noite';
-            else if (p.includes('integral')) selectedPeriodo.value[diaKey] = 'integral';
+            // Mapeia os sub-tipos de integral corretamente
+            if (p === 'INT_MT' || p === 'INT_MN' || p === 'INT_TN') {
+              selectedPeriodo.value[diaKey] = p;
+            } else if (pLower.includes('integral') || p === 'INT') {
+              selectedPeriodo.value[diaKey] = 'INT_MT'; // Integral padrão = Manhã+Tarde
+            } else if (pLower.startsWith('m')) selectedPeriodo.value[diaKey] = 'manha';
+            else if (pLower.startsWith('t')) selectedPeriodo.value[diaKey] = 'tarde';
+            else if (pLower.startsWith('n')) selectedPeriodo.value[diaKey] = 'noite';
 
             if (!ucsSalvas.value[diaKey].some(item => item.uc === slot.aulas[dia].disciplina)) {
               ucsSalvas.value[diaKey].push({ uc: slot.aulas[dia].disciplina, periodo: slot.periodo });
@@ -194,20 +221,108 @@ function resetPeriodos() {
 }
 
 function togglePeriodo(diaValue, periodoValue) {
+  // Se clicou em "Integral", abre o sub-menu ao invés de selecionar direto
+  if (periodoValue === 'INT') {
+    integralSubMenu.value[diaValue] = !integralSubMenu.value[diaValue];
+    return;
+  }
+
+  integralSubMenu.value[diaValue] = false;
+
   if (selectedPeriodo.value[diaValue] === periodoValue) {
     selectedPeriodo.value[diaValue] = null;
   } else {
     selectedPeriodo.value[diaValue] = periodoValue;
   }
+  // Limpa as UCs salvas daquele dia se o usuário mudar o turno
+  ucsSalvas.value[diaValue] = [];
+}
+
+// Quando o usuário escolhe uma das 3 combinações de Integral
+function selecionarIntegral(diaValue, tipo) {
+  integralSubMenu.value[diaValue] = false;
+  selectedPeriodo.value[diaValue] = tipo; // 'INT_MT', 'INT_MN' ou 'INT_TN'
+  ucsSalvas.value[diaValue] = [];
+}
+
+function removerPeriodo(diaValue) {
+  selectedPeriodo.value[diaValue] = null;
+  integralSubMenu.value[diaValue] = false;
+  ucsSalvas.value[diaValue] = [];
 }
 
 const ucsSelecionadasTemp = ref([]); // Array de objetos { uc, periodo }
 
 function abrirModalUC(diaValue) {
   diaDoModal.value = diaValue;
+  buscaUC.value = "";
   // Clone da lista atual para edição temporária
   ucsSelecionadasTemp.value = ucsSalvas.value[diaValue].map(item => ({ ...item }));
   modalUC.value = true;
+}
+
+// Campo de busca dentro do modal
+const buscaUC = ref("");
+
+// Períodos disponíveis calculados dinamicamente com base no período do dia selecionado
+const periodosDisponiveisParaOModal = computed(() => {
+  const periodoDoDiaSelecionado = selectedPeriodo.value[diaDoModal.value];
+
+  if (periodoDoDiaSelecionado === 'manha') {
+    return ['M01', 'M02', 'Manhã'];
+  } else if (periodoDoDiaSelecionado === 'tarde') {
+    return ['T01', 'T02', 'Tarde'];
+  } else if (periodoDoDiaSelecionado === 'noite') {
+    return ['N01', 'N02', 'Noite'];
+  } else if (periodoDoDiaSelecionado === 'INT_MT') {
+    // INTEGRAL Manhã+Tarde: opção integral primeiro, depois sub-slots
+    return ['Manhã + Tarde', 'M01', 'M02', 'Manhã', 'T01', 'T02', 'Tarde'];
+  } else if (periodoDoDiaSelecionado === 'INT_MN') {
+    // INTEGRAL Manhã+Noite
+    return ['Manhã + Noite', 'M01', 'M02', 'Manhã', 'N01', 'N02', 'Noite'];
+  } else if (periodoDoDiaSelecionado === 'INT_TN') {
+    // INTEGRAL Tarde+Noite
+    return ['Tarde + Noite', 'T01', 'T02', 'Tarde', 'N01', 'N02', 'Noite'];
+  }
+
+  return [];
+});
+
+// Calcula quais períodos estão disponíveis para uma UC específica,
+// bloqueando opções conflitantes já usadas por outras UCs
+function periodosDisponiveisPara(ucNome) {
+  const basePeriodos = periodosDisponiveisParaOModal.value;
+  const outrasUcs = ucsSelecionadasTemp.value.filter(item => item.uc !== ucNome && item.periodo);
+
+  // Tabela de conflitos BIDIRECIONAL:
+  // Se alguém escolheu "Manhã", bloqueia M01, M02 E as combinações integrais.
+  // Se alguém escolheu "Manhã + Tarde", bloqueia TODOS os slots individuais.
+  const conflitosGlobais = {
+    'Manhã': ['M01', 'M02', 'Manhã + Tarde', 'Manhã + Noite'],
+    'M01': ['Manhã', 'Manhã + Tarde', 'Manhã + Noite'],
+    'M02': ['Manhã', 'Manhã + Tarde', 'Manhã + Noite'],
+    'Tarde': ['T01', 'T02', 'Manhã + Tarde', 'Tarde + Noite'],
+    'T01': ['Tarde', 'Manhã + Tarde', 'Tarde + Noite'],
+    'T02': ['Tarde', 'Manhã + Tarde', 'Tarde + Noite'],
+    'Noite': ['N01', 'N02', 'Manhã + Noite', 'Tarde + Noite'],
+    'N01': ['Noite', 'Manhã + Noite', 'Tarde + Noite'],
+    'N02': ['Noite', 'Manhã + Noite', 'Tarde + Noite'],
+    'Manhã + Tarde': ['M01', 'M02', 'Manhã', 'T01', 'T02', 'Tarde'],
+    'Manhã + Noite': ['M01', 'M02', 'Manhã', 'N01', 'N02', 'Noite'],
+    'Tarde + Noite': ['T01', 'T02', 'Tarde', 'N01', 'N02', 'Noite'],
+  };
+
+  const periodosBloqueados = new Set();
+
+  outrasUcs.forEach(item => {
+    // Bloqueia o exato mesmo período (ninguém pode repetir)
+    periodosBloqueados.add(item.periodo);
+    // Bloqueia os períodos conflitantes (genérico vs granular)
+    const conflitosDesseItem = conflitosGlobais[item.periodo] || [];
+    conflitosDesseItem.forEach(c => periodosBloqueados.add(c));
+  });
+
+  return basePeriodos.filter(p => !periodosBloqueados.has(p));
 }
 
 function toggleUCSelection(ucNome) {
@@ -217,6 +332,8 @@ function toggleUCSelection(ucNome) {
     } else {
         ucsSelecionadasTemp.value.push({ uc: ucNome, periodo: "" });
     }
+    // Força reatividade no Vue
+    ucsSelecionadasTemp.value = [...ucsSelecionadasTemp.value];
 }
 
 function isUCSelected(ucNome) {
@@ -229,16 +346,32 @@ function getSelectedUCPeriod(ucNome) {
 }
 
 function updateUCPeriod(ucNome, periodo) {
+    // Validação: Impede seleção de período bloqueado por conflito
+    if (periodo !== "") {
+      const disponiveis = periodosDisponiveisPara(ucNome);
+      if (!disponiveis.includes(periodo)) {
+        alert(`Erro: O período '${periodo}' não pode ser selecionado devido a um conflito de horário com outra matéria já marcada.`);
+        return;
+      }
+    }
+
     const item = ucsSelecionadasTemp.value.find(item => item.uc === ucNome);
-    if (item) item.periodo = periodo;
+    if (item) {
+      item.periodo = periodo;
+      // Recria o array para forçar o Vue a re-renderizar
+      ucsSelecionadasTemp.value = [...ucsSelecionadasTemp.value];
+    }
 }
 
 function salvarUCs() {
+  const ucsSemPeriodo = ucsSelecionadasTemp.value.filter(item => !item.periodo);
+  if (ucsSemPeriodo.length > 0) {
+    alert("Por favor, selecione o período para todas as unidades curriculares marcadas.");
+    return;
+  }
   ucsSalvas.value[diaDoModal.value] = [...ucsSelecionadasTemp.value];
   modalUC.value = false;
 }
-
-const periodosDisponiveis = ["M1", "M2", "T1", "T2", "N1", "N2", "Manhã", "Tarde", "Noite", "INT"];
 
 // Extrair professores únicos da turma
 const getProfessores = () => {
@@ -277,7 +410,64 @@ const periodoDescricoes = {
   'Integral': 'Período Integral'
 };
 
+// Valida que todos os turnos de um dia integral estão cobertos pelas UCs
+const diasLabels = {
+  segunda: 'Segunda-feira',
+  terca: 'Terça-feira',
+  quarta: 'Quarta-feira',
+  quinta: 'Quinta-feira',
+  sexta: 'Sexta-feira',
+  sabado: 'Sábado',
+};
+
+function validarCoberturaIntegral() {
+  const erros = [];
+
+  const turnosExigidos = {
+    'INT_MT': {
+      turno1: { nome: 'Manhã', periodos: ['M01', 'M02', 'Manhã', 'Manhã + Tarde'] },
+      turno2: { nome: 'Tarde', periodos: ['T01', 'T02', 'Tarde', 'Manhã + Tarde'] },
+    },
+    'INT_MN': {
+      turno1: { nome: 'Manhã', periodos: ['M01', 'M02', 'Manhã', 'Manhã + Noite'] },
+      turno2: { nome: 'Noite', periodos: ['N01', 'N02', 'Noite', 'Manhã + Noite'] },
+    },
+    'INT_TN': {
+      turno1: { nome: 'Tarde', periodos: ['T01', 'T02', 'Tarde', 'Tarde + Noite'] },
+      turno2: { nome: 'Noite', periodos: ['N01', 'N02', 'Noite', 'Tarde + Noite'] },
+    },
+  };
+
+  for (const [dia, periodo] of Object.entries(selectedPeriodo.value)) {
+    if (!periodo || !turnosExigidos[periodo]) continue;
+
+    const ucsNoDia = ucsSalvas.value[dia] || [];
+    const periodosUsados = ucsNoDia.map(uc => uc.periodo);
+    const exigencias = turnosExigidos[periodo];
+
+    const temTurno1 = exigencias.turno1.periodos.some(p => periodosUsados.includes(p));
+    const temTurno2 = exigencias.turno2.periodos.some(p => periodosUsados.includes(p));
+
+    const faltando = [];
+    if (!temTurno1) faltando.push(exigencias.turno1.nome);
+    if (!temTurno2) faltando.push(exigencias.turno2.nome);
+
+    if (faltando.length > 0) {
+      erros.push(`• ${diasLabels[dia]}: Faltam UCs no período da ${faltando.join(' e ')}. O dia integral exige cobertura de ${exigencias.turno1.nome} e ${exigencias.turno2.nome}.`);
+    }
+  }
+
+  return erros;
+}
+
 function salvar() {
+  // Validação de cobertura integral: se o dia é integral, TODOS os turnos precisam ser cobertos
+  const errosCobertura = validarCoberturaIntegral();
+  if (errosCobertura.length > 0) {
+    alert("Erro na grade semanal:\n\n" + errosCobertura.join("\n"));
+    return;
+  }
+
   const horarios = [];
   for (const [diaSemana, listaUcs] of Object.entries(ucsSalvas.value)) {
     for (const ucItem of listaUcs) {
@@ -480,16 +670,45 @@ function salvar() {
                 <div class="flex-1">
                   <!-- Período Selecionado -->
                   <div v-if="selectedPeriodo[dia.value]" class="w-full mb-3">
-                    <div class="rounded-lg py-1.5 px-3 flex items-center justify-between border" :class="{
-                      'bg-amber-50 border-amber-200 text-amber-700': selectedPeriodo[dia.value] === 'manha',
-                      'bg-blue-50 border-blue-200 text-blue-700': selectedPeriodo[dia.value] === 'tarde',
-                      'bg-indigo-50 border-indigo-200 text-indigo-700': selectedPeriodo[dia.value] === 'noite',
-                      'bg-emerald-50 border-emerald-200 text-emerald-700': selectedPeriodo[dia.value] === 'INT'
-                    }">
-                      <span class="text-xs font-bold">{{periodos.find(p => p.value ===
-                        selectedPeriodo[dia.value])?.label}}</span>
+                    <!-- Se for Manhã -->
+                    <div v-if="selectedPeriodo[dia.value] === 'manha'"
+                      class="rounded-lg py-1.5 px-3 flex items-center justify-between border bg-amber-50 border-amber-200 text-amber-700">
+                      <div class="flex items-center gap-1">
+                        <v-icon icon="mdi-circle" size="8" color="#F59E0B"></v-icon>
+                        <span class="text-xs font-bold">Manhã</span>
+                      </div>
                       <v-icon icon="mdi-close" size="14" class="cursor-pointer"
-                        @click="selectedPeriodo[dia.value] = null"></v-icon>
+                        @click="removerPeriodo(dia.value)"></v-icon>
+                    </div>
+                    <!-- Se for Tarde -->
+                    <div v-else-if="selectedPeriodo[dia.value] === 'tarde'"
+                      class="rounded-lg py-1.5 px-3 flex items-center justify-between border bg-blue-50 border-blue-200 text-blue-700">
+                      <div class="flex items-center gap-1">
+                        <v-icon icon="mdi-circle" size="8" color="#3B82F6"></v-icon>
+                        <span class="text-xs font-bold">Tarde</span>
+                      </div>
+                      <v-icon icon="mdi-close" size="14" class="cursor-pointer"
+                        @click="removerPeriodo(dia.value)"></v-icon>
+                    </div>
+                    <!-- Se for Noite -->
+                    <div v-else-if="selectedPeriodo[dia.value] === 'noite'"
+                      class="rounded-lg py-1.5 px-3 flex items-center justify-between border bg-indigo-50 border-indigo-200 text-indigo-700">
+                      <div class="flex items-center gap-1">
+                        <v-icon icon="mdi-circle" size="8" color="#6366F1"></v-icon>
+                        <span class="text-xs font-bold">Noite</span>
+                      </div>
+                      <v-icon icon="mdi-close" size="14" class="cursor-pointer"
+                        @click="removerPeriodo(dia.value)"></v-icon>
+                    </div>
+                    <!-- Se for Integral (qualquer combinação) -->
+                    <div v-else-if="isIntegral(selectedPeriodo[dia.value])"
+                      class="rounded-lg py-1.5 px-3 flex items-center justify-between border bg-emerald-50 border-emerald-200 text-emerald-700">
+                      <div class="flex items-center gap-1">
+                        <v-icon icon="mdi-circle" size="8" color="#10B981"></v-icon>
+                        <span class="text-[11px] font-bold">{{ integralLabels[selectedPeriodo[dia.value]] }}</span>
+                      </div>
+                      <v-icon icon="mdi-close" size="14" class="cursor-pointer"
+                        @click="removerPeriodo(dia.value)"></v-icon>
                     </div>
 
                     <div class="px-2">
@@ -519,11 +738,30 @@ function salvar() {
                       Toque para Selecionar o Periodo
                     </p>
                     <div class="w-full space-y-1">
-                      <v-btn v-for="p in periodos" :key="p.value" block variant="text" size="small"
-                        class="font-bold text-[15px] dark:text-white capitalize transition-all hover:bg-gray-50 dark:hover:bg-gray-700"
-                        @click="togglePeriodo(dia.value, p.value)">
-                        {{ p.label }}
-                      </v-btn>
+                      <!-- Menu principal: Manhã, Tarde, Noite, Integral -->
+                      <template v-if="!integralSubMenu[dia.value]">
+                        <v-btn v-for="p in periodos" :key="p.value" block variant="text" size="small"
+                          class="font-bold text-[15px] dark:text-white capitalize transition-all hover:bg-gray-50 dark:hover:bg-gray-700"
+                          @click="togglePeriodo(dia.value, p.value)">
+                          {{ p.label }}
+                        </v-btn>
+                      </template>
+                      <!-- Sub-menu do Integral: 3 combinações -->
+                      <template v-else>
+                        <p class="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-1">Qual Integral?</p>
+                        <p class="text-[14px] cursor-pointer font-bold text-emerald-600 hover:underline" @click="selecionarIntegral(dia.value, 'INT_MT')">
+                          Manhã + Tarde
+                        </p>
+                        <p class="text-[14px] cursor-pointer font-bold text-emerald-600 hover:underline" @click="selecionarIntegral(dia.value, 'INT_MN')">
+                          Manhã + Noite
+                        </p>
+                        <p class="text-[14px] cursor-pointer font-bold text-emerald-600 hover:underline" @click="selecionarIntegral(dia.value, 'INT_TN')">
+                          Tarde + Noite
+                        </p>
+                        <p class="text-[12px] cursor-pointer font-bold text-gray-400 hover:text-gray-600 mt-1" @click="integralSubMenu[dia.value] = false">
+                          ← Voltar
+                        </p>
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -542,40 +780,34 @@ function salvar() {
       </v-card-actions>
     </v-card>
 
-    <v-dialog v-model="modalUC" max-width="400">
-      <v-card class="pa-4 rounded-xl">
-        <v-card-title class="text-lg font-bold">Unidades Curriculares</v-card-title>
-        <v-card-text>
-          <div class="max-h-[350px] overflow-y-auto pr-2">
-            <div v-for="uc in unidadesCurriculares" :key="uc.nome" class="flex items-center gap-2 mb-2 pb-2 px-1">
-                <v-checkbox 
-                    :model-value="isUCSelected(uc.nome)" 
-                    @update:model-value="toggleUCSelection(uc.nome)"
-                    :label="uc.nome" 
-                    color="red" 
-                    density="compact" 
-                    hide-details
-                    class="flex-1"
-                ></v-checkbox>
-                
-                <v-select
-                    v-if="isUCSelected(uc.nome)"
-                    :model-value="getSelectedUCPeriod(uc.nome)"
-                    @update:model-value="updateUCPeriod(uc.nome, $event)"
-                    :items="periodosDisponiveis"
-                    label="Período"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                    class="max-w-[120px] mt-2"
-                ></v-select>
+    <v-dialog v-model="modalUC" max-width="520">
+      <v-card class="pa-5 rounded-xl">
+        <v-card-title class="text-lg font-bold">Selecionar Unidades Curriculares</v-card-title>
+
+        <!-- Campo de busca -->
+        <v-text-field v-model="buscaUC" label="Buscar unidade curricular..." variant="filled" hide-details
+          prepend-inner-icon="mdi-magnify" class="mb-4"></v-text-field>
+
+        <!-- Lista de UCs com checkboxes + período -->
+        <div style="max-height: 350px; overflow-y: auto" class="pr-1">
+          <div v-for="(uc, index) in unidadesCurriculares" :key="index">
+            <div v-if="uc.nome.toLowerCase().includes(buscaUC.toLowerCase())"
+              class="flex items-center gap-2 mb-2 pb-2 px-4">
+              <v-checkbox :model-value="isUCSelected(uc.nome)" @update:model-value="toggleUCSelection(uc.nome)"
+                :label="uc.carga ? uc.nome + ' (' + uc.carga + ')' : uc.nome" color="red" hide-details density="compact"
+                :disabled="!isUCSelected(uc.nome) && periodosDisponiveisPara(uc.nome).length === 0"
+                class="flex-1"></v-checkbox>
+              <v-select v-if="isUCSelected(uc.nome)" :model-value="getSelectedUCPeriod(uc.nome)"
+                @update:model-value="updateUCPeriod(uc.nome, $event)" :items="periodosDisponiveisPara(uc.nome)" label="Período"
+                variant="outlined" density="compact" hide-details class="max-w-[130px] mt-2"></v-select>
             </div>
           </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
+        </div>
+
+        <!-- Botões do modal -->
+        <v-card-actions class="justify-end mt-4">
           <v-btn variant="text" @click="modalUC = false">Cancelar</v-btn>
-          <v-btn color="red" @click="salvarUCs">Salvar</v-btn>
+          <v-btn color="red" class="bg-red-600 text-white" @click="salvarUCs">Salvar</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

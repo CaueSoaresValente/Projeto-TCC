@@ -2,17 +2,12 @@
 import { ref, computed, onMounted } from "vue";
 import { useTheme } from "vuetify";
 import Menu from "@/components/Menu.vue";
+import { buscarMeuCalendario } from "@/services/api";
 
 const theme = useTheme();
 
 // Detecta se o tema atual é dark
 const isDark = computed(() => theme.global.current.value.dark);
-
-// Dados do usuário
-const user = ref({
-  name: "Caue Soares",
-  foto: "https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80",
-});
 
 // Itens do menu dropdown do avatar (Padronizado)
 const items = ref([
@@ -21,20 +16,36 @@ const items = ref([
 ]);
 
 // --- ANIMAÇÃO DE OCUPAÇÃO ---
-const ocupacaoAlvo = 70;
+const ocupacaoAlvo = ref(0);
 const ocupacaoExibida = ref(0);
+const carregando = ref(true);
 
-onMounted(() => {
+const iniciarAnimacaoOcupacao = (alvo) => {
+  ocupacaoExibida.value = 0;
+  if (alvo === 0) return;
   const duracao = 1500; // Tempo total da animação em milissegundos
-  const intervalo = duracao / ocupacaoAlvo;
+  const intervalo = duracao / alvo;
   
   const timer = setInterval(() => {
-    if (ocupacaoExibida.value < ocupacaoAlvo) {
+    if (ocupacaoExibida.value < alvo) {
       ocupacaoExibida.value++;
     } else {
       clearInterval(timer);
     }
   }, intervalo);
+};
+
+onMounted(async () => {
+  try {
+    const dados = await buscarMeuCalendario();
+    todasAsAulas.value = dados.aulas || [];
+    ocupacaoAlvo.value = dados.ocupacao || 0;
+    iniciarAnimacaoOcupacao(ocupacaoAlvo.value);
+  } catch (error) {
+    console.error("Erro ao carregar dados do calendário:", error);
+  } finally {
+    carregando.value = false;
+  }
 });
 
 // --- LÓGICA DO CALENDÁRIO REAL ---
@@ -51,11 +62,7 @@ const tituloMesSolo = computed(() => {
 });
 
 // --- DADOS DAS AULAS ---
-const todasAsAulas = ref([
-  { dia: 10, mes: 4, ano: 2026, materia: "Banco de Dados", turma: "TDS-CPTM", periodo: "M1", professor: "Claudio Matarrazo", cargo: "OPP que te designou" },
-  { dia: 15, mes: 4, ano: 2026, materia: "Power BI", turma: "TDS-CPTM", periodo: "M1", professor: "Claudio Matarrazo", cargo: "OPP que te designou" },
-  { dia: 22, mes: 4, ano: 2026, materia: "Android/Kotlin", turma: "TDS-CPTM", periodo: "T1", professor: "Claudio Matarrazo", cargo: "OPP que te designou" },
-]);
+const todasAsAulas = ref([]);
 
 // Função principal que gera a grade de 42 dias
 const gradeDias = computed(() => {
@@ -221,7 +228,7 @@ const anoSelecionado = computed({
             <div class="flex-grow">
               <p class="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">PRÓXIMAS AULAS</p>
               
-              <div v-if="proximasAulas.length > 0" class="space-y-3">
+              <div v-if="proximasAulas.length > 0" class="space-y-3 overflow-y-auto pr-2 max-h-[380px] custom-scrollbar">
                 <v-card v-for="(aula, i) in proximasAulas" :key="i" variant="flat" 
                   class="bg-green-100 dark:bg-green-900/30 rounded-xl p-4 border-l-4 border-green-500">
                   <div class="space-y-1">
@@ -325,4 +332,25 @@ const anoSelecionado = computed({
 .grid-cols-7>div:nth-last-child(-n+7) { border-bottom: none; }
 .group:hover .text-sm { transform: scale(1.1); transition: transform 0.2s; }
 .v-card { transition: all 0.3s ease; }
+
+/* Custom scrollbar for a cleaner premium look */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
 </style>

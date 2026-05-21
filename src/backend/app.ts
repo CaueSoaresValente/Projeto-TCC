@@ -28,6 +28,7 @@ import { OPPController } from './modules/opp/opp.controller.js';
 import { PerfilProfessorController } from './modules/professor/perfil-professor.controller.js';
 import { PerfilController } from './modules/perfil/perfil.controller.js';
 import { TurmaController } from './modules/turma/turma.controller.js';
+import { CalendarioController } from './modules/professor/calendario.controller.js';
 
 dotenv.config();
 
@@ -50,6 +51,7 @@ const oppController = new OPPController();
 const perfilProfessorController = new PerfilProfessorController();
 const perfilController = new PerfilController();
 const turmaController = new TurmaController();
+const calendarioController = new CalendarioController();
 
 // ====================== ROTAS DE AUTENTICAÇÃO ======================
 app.post('/api/auth/login', (req, res) => authController.login(req, res));
@@ -123,6 +125,9 @@ app.delete('/api/professor/disponibilidade/:id', (req, res) => disponibilidadeCo
 // O gestor vê todos os professores, e o opp vê apenas os das suas áreas.
 app.get('/api/professores/perfis', authMiddleware(['gestor', 'opp']), (req, res) => perfilProfessorController.listar(req, res));
 app.get('/api/professores/perfis/:idProfessor', authMiddleware(['gestor', 'opp']), (req, res) => perfilProfessorController.perfilCompleto(req, res));
+
+// ====================== ROTAS DE CALENDÁRIO DO PROFESSOR ======================
+app.get('/api/professor/calendario', authMiddleware(['professor']), (req, res) => calendarioController.meuCalendario(req, res));
 
 // ====================== ROTAS DE TURMAS ======================
 // Listagem e CRUD das turmas criadas por Gestores e OPPs.

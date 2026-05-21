@@ -255,14 +255,14 @@ const periodosDisponiveisParaOModal = computed(() => {
   } else if (periodoDoDiaSelecionado === 'noite') {
     return ['N01', 'N02', 'Noite'];
   } else if (periodoDoDiaSelecionado === 'INT_MT') {
-    // INTEGRAL Manhã+Tarde: 4 sub-slots + 2 turnos completos
-    return ['M01', 'M02', 'Manhã', 'T01', 'T02', 'Tarde'];
+    // INTEGRAL Manhã+Tarde: opção integral primeiro, depois sub-slots + turnos completos
+    return ['Manhã + Tarde', 'M01', 'M02', 'Manhã', 'T01', 'T02', 'Tarde'];
   } else if (periodoDoDiaSelecionado === 'INT_MN') {
-    // INTEGRAL Manhã+Noite: 4 sub-slots + 2 turnos completos
-    return ['M01', 'M02', 'Manhã', 'N01', 'N02', 'Noite'];
+    // INTEGRAL Manhã+Noite: opção integral primeiro, depois sub-slots + turnos completos
+    return ['Manhã + Noite', 'M01', 'M02', 'Manhã', 'N01', 'N02', 'Noite'];
   } else if (periodoDoDiaSelecionado === 'INT_TN') {
-    // INTEGRAL Tarde+Noite: 4 sub-slots + 2 turnos completos
-    return ['T01', 'T02', 'Tarde', 'N01', 'N02', 'Noite'];
+    // INTEGRAL Tarde+Noite: opção integral primeiro, depois sub-slots + turnos completos
+    return ['Tarde + Noite', 'T01', 'T02', 'Tarde', 'N01', 'N02', 'Noite'];
   }
 
   return [];
@@ -277,19 +277,22 @@ function periodosDisponiveisPara(ucNome) {
   const basePeriodos = periodosDisponiveisParaOModal.value;
   const outrasUcs = ucsSelecionadasTemp.value.filter(item => item.uc !== ucNome && item.periodo);
   
-  // Tabela de conflitos: se alguém escolheu "Manhã", bloqueia M01 e M02.
-  // No modo Integral, como só temos os 6 slots granulares, 
-  // cada um conflita apenas consigo mesmo (já tratado abaixo).
+  // Tabela de conflitos BIDIRECIONAL:
+  // Se alguém escolheu "Manhã", bloqueia M01, M02 E as combinações integrais.
+  // Se alguém escolheu "Manhã + Tarde", bloqueia TODOS os slots individuais.
   const conflitosGlobais = {
-    'Manhã': ['M01', 'M02'],
-    'M01': ['Manhã'],
-    'M02': ['Manhã'],
-    'Tarde': ['T01', 'T02'],
-    'T01': ['Tarde'],
-    'T02': ['Tarde'],
-    'Noite': ['N01', 'N02'],
-    'N01': ['Noite'],
-    'N02': ['Noite'],
+    'Manhã': ['M01', 'M02', 'Manhã + Tarde', 'Manhã + Noite'],
+    'M01': ['Manhã', 'Manhã + Tarde', 'Manhã + Noite'],
+    'M02': ['Manhã', 'Manhã + Tarde', 'Manhã + Noite'],
+    'Tarde': ['T01', 'T02', 'Manhã + Tarde', 'Tarde + Noite'],
+    'T01': ['Tarde', 'Manhã + Tarde', 'Tarde + Noite'],
+    'T02': ['Tarde', 'Manhã + Tarde', 'Tarde + Noite'],
+    'Noite': ['N01', 'N02', 'Manhã + Noite', 'Tarde + Noite'],
+    'N01': ['Noite', 'Manhã + Noite', 'Tarde + Noite'],
+    'N02': ['Noite', 'Manhã + Noite', 'Tarde + Noite'],
+    'Manhã + Tarde': ['M01', 'M02', 'Manhã', 'T01', 'T02', 'Tarde'],
+    'Manhã + Noite': ['M01', 'M02', 'Manhã', 'N01', 'N02', 'Noite'],
+    'Tarde + Noite': ['T01', 'T02', 'Tarde', 'N01', 'N02', 'Noite'],
   };
 
   const periodosBloqueados = new Set();
@@ -478,6 +481,58 @@ async function carregarOpps() {
   }
 }
 
+// Valida que todos os turnos de um dia integral estão cobertos pelas UCs
+// Ex: Se o dia é INT_MT (Manhã+Tarde), precisa ter UCs cobrindo Manhã E Tarde
+const diasLabels = {
+  segunda: 'Segunda-feira',
+  terca: 'Terça-feira',
+  quarta: 'Quarta-feira',
+  quinta: 'Quinta-feira',
+  sexta: 'Sexta-feira',
+  sabado: 'Sábado',
+};
+
+function validarCoberturaIntegral() {
+  const erros = [];
+
+  // Define quais turnos cada tipo integral exige
+  const turnosExigidos = {
+    'INT_MT': {
+      turno1: { nome: 'Manhã', periodos: ['M01', 'M02', 'Manhã', 'Manhã + Tarde'] },
+      turno2: { nome: 'Tarde', periodos: ['T01', 'T02', 'Tarde', 'Manhã + Tarde'] },
+    },
+    'INT_MN': {
+      turno1: { nome: 'Manhã', periodos: ['M01', 'M02', 'Manhã', 'Manhã + Noite'] },
+      turno2: { nome: 'Noite', periodos: ['N01', 'N02', 'Noite', 'Manhã + Noite'] },
+    },
+    'INT_TN': {
+      turno1: { nome: 'Tarde', periodos: ['T01', 'T02', 'Tarde', 'Tarde + Noite'] },
+      turno2: { nome: 'Noite', periodos: ['N01', 'N02', 'Noite', 'Tarde + Noite'] },
+    },
+  };
+
+  for (const [dia, periodo] of Object.entries(selectedPeriodo.value)) {
+    if (!periodo || !turnosExigidos[periodo]) continue;
+
+    const ucsNoDia = ucsSalvas.value[dia] || [];
+    const periodosUsados = ucsNoDia.map(uc => uc.periodo);
+    const exigencias = turnosExigidos[periodo];
+
+    const temTurno1 = exigencias.turno1.periodos.some(p => periodosUsados.includes(p));
+    const temTurno2 = exigencias.turno2.periodos.some(p => periodosUsados.includes(p));
+
+    const faltando = [];
+    if (!temTurno1) faltando.push(exigencias.turno1.nome);
+    if (!temTurno2) faltando.push(exigencias.turno2.nome);
+
+    if (faltando.length > 0) {
+      erros.push(`• ${diasLabels[dia]}: Faltam UCs no período da ${faltando.join(' e ')}. O dia integral exige cobertura de ${exigencias.turno1.nome} e ${exigencias.turno2.nome}.`);
+    }
+  }
+
+  return erros;
+}
+
 async function salvarTurmaNoNavegador() {
   if (!nomeTurma.value) {
     alert("Por favor, preencha o nome da turma!");
@@ -513,6 +568,13 @@ async function salvarTurmaNoNavegador() {
     return;
   }
 
+  // Validação de cobertura integral: se o dia é integral, TODOS os turnos precisam ser cobertos
+  const errosCobertura = validarCoberturaIntegral();
+  if (errosCobertura.length > 0) {
+    alert("Erro na grade semanal:\n\n" + errosCobertura.join("\n"));
+    return;
+  }
+
   try {
     await criarTurma({
       nome: nomeTurma.value,
@@ -541,6 +603,9 @@ const periodoDescricoes = {
   'Manhã': 'Período da Manhã inteira',
   'Tarde': 'Período da Tarde inteira',
   'Noite': 'Período da Noite inteira',
+  'Manhã + Tarde': 'Integral (Manhã + Tarde)',
+  'Manhã + Noite': 'Integral (Manhã + Noite)',
+  'Tarde + Noite': 'Integral (Tarde + Noite)',
   'INT_MT': 'Integral (Manhã + Tarde)',
   'INT_MN': 'Integral (Manhã + Noite)',
   'INT_TN': 'Integral (Tarde + Noite)',
