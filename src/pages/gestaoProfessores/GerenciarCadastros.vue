@@ -330,16 +330,17 @@ onMounted(() => {
   </v-dialog>
 
   <!-- Modal Deletar -->
-  <v-dialog v-model="dialogDelete" max-width="400px">
-    <v-card class="rounded-lg">
-      <v-card-title class="bg-red-600 text-white pa-4">Confirmar Exclusão</v-card-title>
-      <v-card-text class="pa-4 text-center">
-        Deseja realmente excluir o usuário <b>{{ usuarioDeletando?.nome }}</b>?
+  <v-dialog v-model="dialogDelete" max-width="450px" persistent>
+    <v-card class="rounded-xl overflow-hidden shadow-2xl">
+      <v-card-title class="bg-red-600 text-white font-bold px-6 py-4 text-xl">
+        Confirmar Exclusão
+      </v-card-title>
+      <v-card-text class="pa-8 text-center text-lg font-medium leading-relaxed text-gray-700">
+        Tem certeza de que deseja excluir o usuário <b>{{ usuarioDeletando?.nome }}</b>? Esta ação não pode ser desfeita.
       </v-card-text>
-      <v-card-actions class="pa-4">
-        <v-spacer></v-spacer>
-        <v-btn @click="dialogDelete = false">Cancelar</v-btn>
-        <v-btn color="red" variant="elevated" @click="confirmarDelete">Excluir</v-btn>
+      <v-card-actions class="pa-6 pt-0 flex justify-end gap-3">
+        <v-btn color="grey-darken-1" variant="text" class="font-bold px-6 uppercase tracking-wide" @click="dialogDelete = false">Cancelar</v-btn>
+        <v-btn variant="elevated" color="white" class="text-gray-800 font-bold px-8 shadow-sm border uppercase tracking-wide" @click="confirmarDelete">Excluir</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, computed } from "vue";
+import { getUsuarioLogado } from "@/services/api";
 
 const props = defineProps({
   modelValue: Boolean,
@@ -7,6 +8,24 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["update:modelValue", "save"]);
+
+const usuarioLogado = getUsuarioLogado();
+const isOpp = computed(() => usuarioLogado?.funcao === 'opp');
+
+const snackbar = ref({
+  show: false,
+  text: "",
+  color: "red",
+  icon: "mdi-alert-circle",
+  timeout: 5000
+});
+
+function showAlert(text, color = "red", icon = "mdi-alert-circle") {
+  snackbar.value.text = text;
+  snackbar.value.color = color;
+  snackbar.value.icon = icon;
+  snackbar.value.show = true;
+}
 
 const form = ref({
   label: "",
@@ -22,7 +41,27 @@ const form = ref({
 const todosOpps = ref([]);
 const oppsList = ref([]);
 const areasDisponiveis = ref([]);
+const filteredAreas = computed(() => {
+  if (!isOpp.value) return areasDisponiveis.value;
+  const oppLogado = todosOpps.value.find(o => o.idCadastro === usuarioLogado?.idUsuario);
+  if (!oppLogado || !oppLogado.oppAreas) return [];
+  const idsPermitidos = oppLogado.oppAreas.map(oa => oa.idArea);
+  return areasDisponiveis.value.filter(area => idsPermitidos.includes(area.value));
+});
 const unidadesCurriculares = ref([]);
+const todasUnidadesCurriculares = ref([]);
+const areaFiltroModal = ref(null);
+
+const filteredCompetencias = computed(() => {
+  let list = todasUnidadesCurriculares.value;
+  if (areaFiltroModal.value) {
+    list = list.filter(uc => uc.idArea === areaFiltroModal.value);
+  }
+  if (buscaUC.value) {
+    list = list.filter(uc => uc.nome.toLowerCase().includes(buscaUC.value.toLowerCase()));
+  }
+  return list;
+});
 
 async function carregarAreas() {
   try {
@@ -94,7 +133,6 @@ async function carregarUCs() {
 // Observa mudanças na área para filtrar OPPs e UCs
 watch(() => form.value.idArea, (novaAreaId, antigaAreaId) => {
   filtrarOpps();
-  carregarUCs();
   // Limpa a seleção de OPP e UCs apenas se for uma troca intencional (antigaAreaId !== undefined)
   if (antigaAreaId !== undefined && antigaAreaId !== null && novaAreaId !== antigaAreaId) {
     form.value.idOPP = null;
@@ -104,10 +142,33 @@ watch(() => form.value.idArea, (novaAreaId, antigaAreaId) => {
   }
 });
 
-onMounted(() => {
-  carregarAreas();
-  carregarOpps();
+onMounted(async () => {
+  await carregarAreas();
+  await carregarOpps();
+  await carregarTodasUCs();
 });
+
+async function carregarTodasUCs() {
+  try {
+    const response = await fetch("http://localhost:3001/api/competencias");
+    const data = await response.json();
+    todasUnidadesCurriculares.value = data.map(uc => {
+      let carga = "";
+      if (uc.descricao) {
+        const match = uc.descricao.match(/(\d+h)/i);
+        if (match) carga = match[1];
+      }
+      return {
+        idUC: uc.idUC,
+        nome: uc.nome,
+        idArea: uc.idArea,
+        carga: carga || undefined
+      };
+    });
+  } catch (error) {
+    console.error("Erro ao carregar todas as UCs:", error);
+  }
+}
 
 const selectedPeriodo = ref({
   segunda: null,
@@ -205,8 +266,13 @@ watch(() => props.turma, (newTurma) => {
             else if (pLower.startsWith('t')) selectedPeriodo.value[diaKey] = 'tarde';
             else if (pLower.startsWith('n')) selectedPeriodo.value[diaKey] = 'noite';
 
-            if (!ucsSalvas.value[diaKey].some(item => item.uc === slot.aulas[dia].disciplina)) {
-              ucsSalvas.value[diaKey].push({ uc: slot.aulas[dia].disciplina, periodo: slot.periodo });
+            if (!ucsSalvas.value[diaKey].some(item => item.idUC === slot.aulas[dia].idUC && item.periodo === slot.periodo)) {
+              ucsSalvas.value[diaKey].push({ 
+                uc: slot.aulas[dia].disciplina, 
+                idUC: slot.aulas[dia].idUC, 
+                periodo: slot.periodo,
+                professor: slot.aulas[dia].professor
+              });
             }
           }
         });
@@ -290,9 +356,9 @@ const periodosDisponiveisParaOModal = computed(() => {
 
 // Calcula quais períodos estão disponíveis para uma UC específica,
 // bloqueando opções conflitantes já usadas por outras UCs
-function periodosDisponiveisPara(ucNome) {
+function periodosDisponiveisPara(ucId) {
   const basePeriodos = periodosDisponiveisParaOModal.value;
-  const outrasUcs = ucsSelecionadasTemp.value.filter(item => item.uc !== ucNome && item.periodo);
+  const outrasUcs = ucsSelecionadasTemp.value.filter(item => item.idUC !== ucId && item.periodo);
 
   // Tabela de conflitos BIDIRECIONAL:
   // Se alguém escolheu "Manhã", bloqueia M01, M02 E as combinações integrais.
@@ -325,48 +391,46 @@ function periodosDisponiveisPara(ucNome) {
   return basePeriodos.filter(p => !periodosBloqueados.has(p));
 }
 
-function toggleUCSelection(ucNome) {
-    const index = ucsSelecionadasTemp.value.findIndex(item => item.uc === ucNome);
-    if (index > -1) {
-        ucsSelecionadasTemp.value.splice(index, 1);
-    } else {
-        ucsSelecionadasTemp.value.push({ uc: ucNome, periodo: "" });
+function toggleUCSelection(uc) {
+  const index = ucsSelecionadasTemp.value.findIndex(item => item.idUC === uc.idUC);
+  if (index > -1) {
+    ucsSelecionadasTemp.value.splice(index, 1);
+  } else {
+    ucsSelecionadasTemp.value.push({ uc: uc.nome, idUC: uc.idUC, periodo: "" });
+  }
+}
+
+function isUCSelected(ucId) {
+  return ucsSelecionadasTemp.value.some(item => item.idUC === ucId);
+}
+
+function getSelectedUCPeriod(ucId) {
+  const item = ucsSelecionadasTemp.value.find(item => item.idUC === ucId);
+  return item ? item.periodo : "";
+}
+
+function updateUCPeriod(ucId, periodo) {
+  // Validação: Impede seleção de período bloqueado por conflito
+  if (periodo !== "") {
+    const disponiveis = periodosDisponiveisPara(ucId);
+    if (!disponiveis.includes(periodo)) {
+      showAlert(`Erro: O período '${periodo}' não pode ser selecionado devido a um conflito de horário com outra matéria já marcada.`, "warning", "mdi-clock-alert");
+      return;
     }
-    // Força reatividade no Vue
+  }
+
+  const item = ucsSelecionadasTemp.value.find(item => item.idUC === ucId);
+  if (item) {
+    item.periodo = periodo;
+    // Recria o array para forçar o Vue a re-renderizar
     ucsSelecionadasTemp.value = [...ucsSelecionadasTemp.value];
-}
-
-function isUCSelected(ucNome) {
-    return ucsSelecionadasTemp.value.some(item => item.uc === ucNome);
-}
-
-function getSelectedUCPeriod(ucNome) {
-    const item = ucsSelecionadasTemp.value.find(item => item.uc === ucNome);
-    return item ? item.periodo : "";
-}
-
-function updateUCPeriod(ucNome, periodo) {
-    // Validação: Impede seleção de período bloqueado por conflito
-    if (periodo !== "") {
-      const disponiveis = periodosDisponiveisPara(ucNome);
-      if (!disponiveis.includes(periodo)) {
-        alert(`Erro: O período '${periodo}' não pode ser selecionado devido a um conflito de horário com outra matéria já marcada.`);
-        return;
-      }
-    }
-
-    const item = ucsSelecionadasTemp.value.find(item => item.uc === ucNome);
-    if (item) {
-      item.periodo = periodo;
-      // Recria o array para forçar o Vue a re-renderizar
-      ucsSelecionadasTemp.value = [...ucsSelecionadasTemp.value];
-    }
+  }
 }
 
 function salvarUCs() {
   const ucsSemPeriodo = ucsSelecionadasTemp.value.filter(item => !item.periodo);
   if (ucsSemPeriodo.length > 0) {
-    alert("Por favor, selecione o período para todas as unidades curriculares marcadas.");
+    showAlert("Por favor, selecione o período para todas as unidades curriculares marcadas.", "warning");
     return;
   }
   ucsSalvas.value[diaDoModal.value] = [...ucsSelecionadasTemp.value];
@@ -374,25 +438,19 @@ function salvarUCs() {
 }
 
 // Extrair professores únicos da turma
-const getProfessores = () => {
-  if (!props.turma || !props.turma.grade) return [];
+const listaDeProfessores = computed(() => {
   const profs = new Set();
-  props.turma.grade.forEach(slot => {
-    Object.values(slot.aulas || {}).forEach(aula => {
-      if (aula.professor) profs.add(aula.professor);
+  Object.values(ucsSalvas.value).forEach(ucsNoDia => {
+    ucsNoDia.forEach(item => {
+      if (item.professor) profs.add(item.professor);
     });
   });
   return Array.from(profs);
-};
+});
 
 function removerProfessor(nome) {
-  if (!props.turma || !props.turma.grade) return;
-  props.turma.grade.forEach(slot => {
-    Object.keys(slot.aulas || {}).forEach(dia => {
-      if (slot.aulas[dia].professor === nome) {
-        slot.aulas[dia].professor = "";
-      }
-    });
+  Object.keys(ucsSalvas.value).forEach(dia => {
+    ucsSalvas.value[dia] = ucsSalvas.value[dia].filter(item => item.professor !== nome);
   });
 }
 
@@ -464,7 +522,7 @@ function salvar() {
   // Validação de cobertura integral: se o dia é integral, TODOS os turnos precisam ser cobertos
   const errosCobertura = validarCoberturaIntegral();
   if (errosCobertura.length > 0) {
-    alert("Erro na grade semanal:\n\n" + errosCobertura.join("\n"));
+    showAlert("Erro na grade semanal:\n\n" + errosCobertura.join("\n"), "error", "mdi-alert-octagon");
     return;
   }
 
@@ -475,6 +533,7 @@ function salvar() {
       horarios.push({
         diaSemana,
         periodo: ucItem.periodo,
+        idUC: ucItem.idUC,
         nomeUC: ucItem.uc,
       });
     }
@@ -585,13 +644,13 @@ function salvar() {
               </div>
               <div>
                 <p class="mb-1 font-bold text-xs text-gray-500 uppercase">Áreas</p>
-                <v-select v-model="form.idArea" :items="areasDisponiveis" item-title="title" item-value="value" variant="filled"
-                  density="compact" hide-details placeholder="Selecione..." persistent-placeholder></v-select>
+                <v-select v-model="form.idArea" :items="filteredAreas" item-title="title" item-value="value" variant="filled"
+                  density="compact" hide-details placeholder="Selecione..." :disabled="isOpp" persistent-placeholder></v-select>
               </div>
               <div>
                 <p class="mb-1 font-bold text-xs text-gray-500 uppercase">Opp Responsável</p>
                 <v-select v-model="form.idOPP" :items="oppsList" item-title="label" item-value="value"
-                  variant="filled" density="compact" hide-details :disabled="!form.idArea"
+                  variant="filled" density="compact" hide-details :disabled="isOpp || !form.idArea"
                   placeholder="Selecione uma Área primeiro..." persistent-placeholder></v-select>
               </div>
             </div>
@@ -619,12 +678,12 @@ function salvar() {
             <div class="mb-4">
               <p class="mb-2 font-bold text-xs text-gray-500 uppercase">Professores Adicionados</p>
               <div class="flex flex-wrap gap-2">
-                <v-chip v-for="prof in getProfessores()" :key="prof" size="small" color="red" variant="tonal"
+                <v-chip v-for="prof in listaDeProfessores" :key="prof" size="small" color="red" variant="tonal"
                   class="font-bold" closable @click:close="removerProfessor(prof)">
                   <v-avatar start icon="mdi-account" color="red-lighten-4"></v-avatar>
                   {{ prof }}
                 </v-chip>
-                <v-chip v-if="getProfessores().length === 0" size="small" variant="text">Nenhum professor
+                <v-chip v-if="listaDeProfessores.length === 0" size="small" variant="text">Nenhum professor
                   vinculado</v-chip>
               </div>
             </div>
@@ -784,21 +843,31 @@ function salvar() {
       <v-card class="pa-5 rounded-xl">
         <v-card-title class="text-lg font-bold">Selecionar Unidades Curriculares</v-card-title>
 
-        <!-- Campo de busca -->
-        <v-text-field v-model="buscaUC" label="Buscar unidade curricular..." variant="filled" hide-details
-          prepend-inner-icon="mdi-magnify" class="mb-4"></v-text-field>
+        <!-- Área de Filtros -->
+        <div class="space-y-3 mb-4 mt-2">
+          <div>
+            <p class="mb-1 font-bold text-[12px] text-gray-500 uppercase tracking-wide">Filtrar por Área</p>
+            <v-select v-model="areaFiltroModal" :items="areasDisponiveis" item-title="title" item-value="value"
+              placeholder="Selecione a área..." variant="filled" density="compact" hide-details clearable></v-select>
+          </div>
+
+          <div>
+            <p class="mb-1 font-bold text-[12px] text-gray-500 uppercase tracking-wide">Buscar Unidade</p>
+            <v-text-field v-model="buscaUC" placeholder="Digite o nome da UC..." variant="filled" hide-details
+              prepend-inner-icon="mdi-magnify" density="compact"></v-text-field>
+          </div>
+        </div>
 
         <!-- Lista de UCs com checkboxes + período -->
-        <div style="max-height: 350px; overflow-y: auto" class="pr-1">
-          <div v-for="(uc, index) in unidadesCurriculares" :key="index">
-            <div v-if="uc.nome.toLowerCase().includes(buscaUC.toLowerCase())"
-              class="flex items-center gap-2 mb-2 pb-2 px-4">
-              <v-checkbox :model-value="isUCSelected(uc.nome)" @update:model-value="toggleUCSelection(uc.nome)"
+        <div style="max-height: 350px; overflow-y: auto" class="pr-1 pt-2">
+          <div v-for="(uc, index) in filteredCompetencias" :key="index">
+            <div class="flex items-center gap-2 mb-4 pb-2 px-4 shadow-sm border-b">
+              <v-checkbox :model-value="isUCSelected(uc.idUC)" @update:model-value="toggleUCSelection(uc)"
                 :label="uc.carga ? uc.nome + ' (' + uc.carga + ')' : uc.nome" color="red" hide-details density="compact"
-                :disabled="!isUCSelected(uc.nome) && periodosDisponiveisPara(uc.nome).length === 0"
+                :disabled="!isUCSelected(uc.idUC) && periodosDisponiveisPara(uc.idUC).length === 0"
                 class="flex-1"></v-checkbox>
-              <v-select v-if="isUCSelected(uc.nome)" :model-value="getSelectedUCPeriod(uc.nome)"
-                @update:model-value="updateUCPeriod(uc.nome, $event)" :items="periodosDisponiveisPara(uc.nome)" label="Período"
+              <v-select v-if="isUCSelected(uc.idUC)" :model-value="getSelectedUCPeriod(uc.idUC)"
+                @update:model-value="updateUCPeriod(uc.idUC, $event)" :items="periodosDisponiveisPara(uc.idUC)" label="Período"
                 variant="outlined" density="compact" hide-details class="max-w-[130px] mt-2"></v-select>
             </div>
           </div>
@@ -811,5 +880,39 @@ function salvar() {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Snackbar de Alertas Premium -->
+    <v-snackbar 
+      v-model="snackbar.show" 
+      :color="snackbar.color" 
+      :timeout="snackbar.timeout" 
+      location="top center" 
+      class="mt-1"
+      elevation="24"
+      rounded="xl"
+      style="z-index: 10000;"
+    >
+      <div class="flex items-start gap-4 p-1">
+        <v-avatar :color="snackbar.color" size="40" class="elevation-3 flex-shrink-0">
+          <v-icon :icon="snackbar.icon" color="white" size="24"></v-icon>
+        </v-avatar>
+        <div class="flex-grow text-white">
+          <p class="text-xs font-black uppercase tracking-widest opacity-70 mb-0.5">Notificação</p>
+          <p class="text-[13px] font-bold leading-tight">{{ snackbar.text }}</p>
+        </div>
+        <v-btn icon="mdi-close" variant="text" color="white" @click="snackbar.show = false" size="small" class="opacity-50 hover:opacity-100 transition-opacity"></v-btn>
+      </div>
+      
+      <template v-slot:text>
+        <v-progress-linear
+          indeterminate
+          absolute
+          bottom
+          height="3"
+          color="white"
+          class="rounded-b-xl opacity-30"
+        ></v-progress-linear>
+      </template>
+    </v-snackbar>
   </v-dialog>
 </template>

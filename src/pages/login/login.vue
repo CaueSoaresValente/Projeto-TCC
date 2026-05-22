@@ -39,6 +39,21 @@ const rules = {
 const v$ = useVuelidate(rules, state);
 
 // Estado para mensagens de erro/sucesso
+const snackbar = ref({
+  show: false,
+  text: "",
+  color: "red",
+  icon: "mdi-alert-circle",
+  timeout: 5000
+});
+
+function showAlert(text, color = "red", icon = "mdi-alert-circle") {
+  snackbar.value.text = text;
+  snackbar.value.color = color;
+  snackbar.value.icon = icon;
+  snackbar.value.show = true;
+}
+
 const loginError = ref("");
 const loginLoading = ref(false);
 
@@ -92,7 +107,7 @@ const recoveryLoading = ref(false);
 
 async function handleRecovery() {
   if (!recoveryEmail.value) {
-    alert("Por favor, insira seu e-mail.");
+    showAlert("Por favor, insira seu e-mail.", "warning");
     return;
   }
 
@@ -101,15 +116,15 @@ async function handleRecovery() {
     // Chama o backend via api.ts (não mais via URL hardcoded!)
     const data = await recuperarSenha(recoveryEmail.value);
     if (data.success) {
-      alert("Link de recuperação enviado com sucesso!");
+      showAlert("Link de recuperação enviado com sucesso!", "success", "mdi-check-circle");
       recoveryDialog.value = false;
       recoveryEmail.value = "";
     } else {
-      alert("E-mail não encontrado ou erro ao enviar.");
+      showAlert("E-mail não encontrado ou erro ao enviar.", "error", "mdi-alert-octagon");
     }
   } catch (error) {
     console.error("Erro na recuperação:", error);
-    alert("Erro ao conectar com o servidor.");
+    showAlert("Erro ao conectar com o servidor.", "error", "mdi-api-off");
   } finally {
     recoveryLoading.value = false;
   }
@@ -219,4 +234,37 @@ async function handleRecovery() {
       </v-card>
     </v-dialog>
   </div>
+
+  <!-- Snackbar de Alertas Premium -->
+  <v-snackbar 
+    v-model="snackbar.show" 
+    :color="snackbar.color" 
+    :timeout="snackbar.timeout" 
+    location="top right" 
+    class="mt-4 mr-4"
+    elevation="24"
+    rounded="xl"
+  >
+    <div class="flex items-start gap-4 p-1">
+      <v-avatar :color="snackbar.color" size="40" class="elevation-3 flex-shrink-0">
+        <v-icon :icon="snackbar.icon" color="white" size="24"></v-icon>
+      </v-avatar>
+      <div class="flex-grow text-white">
+        <p class="text-xs font-black uppercase tracking-widest opacity-70 mb-0.5">Notificação</p>
+        <p class="text-[13px] font-bold leading-tight">{{ snackbar.text }}</p>
+      </div>
+      <v-btn icon="mdi-close" variant="text" color="white" @click="snackbar.show = false" size="small" class="opacity-50 hover:opacity-100 transition-opacity"></v-btn>
+    </div>
+    
+    <template v-slot:text>
+      <v-progress-linear
+        indeterminate
+        absolute
+        bottom
+        height="3"
+        color="white"
+        class="rounded-b-xl opacity-30"
+      ></v-progress-linear>
+    </template>
+  </v-snackbar>
 </template>

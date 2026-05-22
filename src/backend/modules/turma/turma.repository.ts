@@ -51,18 +51,41 @@ export class TurmaRepository {
     idTurma: number,
     horarios: { idUC: number; diaSemana: string; periodo: string }[],
   ): Promise<void> {
-    await this.turmaUCRepo.delete({ idTurma });
-    if (horarios.length === 0) return;
+    const existing = await this.turmaUCRepo.find({ where: { idTurma } });
 
-    const registros = horarios.map((h) =>
-      this.turmaUCRepo.create({
-        idTurma,
-        idUC: h.idUC,
-        diaSemana: h.diaSemana,
-        periodo: h.periodo,
-      }),
+    // Determinar o que deletar: registros que existem mas não estão na nova lista
+    const toDelete = existing.filter(ex => 
+      !horarios.some(h => 
+        h.idUC === ex.idUC && 
+        h.diaSemana.toLowerCase() === ex.diaSemana.toLowerCase() && 
+        h.periodo === ex.periodo
+      )
     );
-    await this.turmaUCRepo.save(registros);
+
+    // Determinar o que adicionar: registros novos que não existem
+    const toAdd = horarios.filter(h => 
+      !existing.some(ex => 
+        ex.idUC === h.idUC && 
+        ex.diaSemana.toLowerCase() === h.diaSemana.toLowerCase() && 
+        ex.periodo === h.periodo
+      )
+    );
+
+    if (toDelete.length > 0) {
+      await this.turmaUCRepo.remove(toDelete);
+    }
+
+    if (toAdd.length > 0) {
+      const registros = toAdd.map((h) =>
+        this.turmaUCRepo.create({
+          idTurma,
+          idUC: h.idUC,
+          diaSemana: h.diaSemana.toLowerCase(),
+          periodo: h.periodo,
+        }),
+      );
+      await this.turmaUCRepo.save(registros);
+    }
   }
 
   async update(idTurma: number, data: Partial<Turma>): Promise<Turma | null> {

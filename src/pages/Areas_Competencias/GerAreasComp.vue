@@ -661,23 +661,17 @@ watch(dialogAddArea, (val) => {
   </v-dialog>
 
   <!-- ====================== MODAL: EXCLUIR ÁREA ====================== -->
-  <v-dialog v-model="dialogDelete" max-width="400px" persistent>
-    <v-card>
-      <v-card-title class="text-h5 bg-red-600 text-white pa-4">
+  <v-dialog v-model="dialogDelete" max-width="450px" persistent>
+    <v-card class="rounded-xl overflow-hidden shadow-2xl">
+      <v-card-title class="bg-red-600 text-white font-bold px-6 py-4 text-xl">
         Confirmar Exclusão
       </v-card-title>
-      <v-card-text class="pa-4 text-center text-lg">
-        Tem certeza de que deseja excluir a área <b>{{ areaDeletando?.nome }}</b>? Esta ação não pode ser
-        desfeita.
+      <v-card-text class="pa-8 text-center text-lg font-medium leading-relaxed text-gray-700">
+        Tem certeza de que deseja excluir a área <b>{{ areaDeletando?.nome }}</b>? Esta ação não pode ser desfeita.
       </v-card-text>
-      <v-card-actions class="pa-4">
-        <v-spacer></v-spacer>
-        <v-btn color="grey" variant="text" @click="dialogDelete = false"
-          >Cancelar</v-btn
-        >
-        <v-btn color="red" variant="elevated" @click="confirmarDeleteArea"
-          >Excluir</v-btn
-        >
+      <v-card-actions class="pa-6 pt-0 flex justify-end gap-3">
+        <v-btn color="grey-darken-1" variant="text" class="font-bold px-6 uppercase tracking-wide" @click="dialogDelete = false">Cancelar</v-btn>
+        <v-btn variant="elevated" color="white" class="text-gray-800 font-bold px-8 shadow-sm border uppercase tracking-wide" @click="confirmarDeleteArea">Excluir</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -706,18 +700,17 @@ watch(dialogAddArea, (val) => {
   </v-dialog>
 
   <!-- ====================== MODAL: EXCLUIR UNIDADE CURRICULAR ====================== -->
-  <v-dialog v-model="dialogDeleteCompetencia" max-width="400px" persistent>
-    <v-card class="rounded-lg">
-      <v-card-title class="text-h5 bg-red-600 text-white pa-4">
-        Excluir Unidade Curricular
+  <v-dialog v-model="dialogDeleteCompetencia" max-width="450px" persistent>
+    <v-card class="rounded-xl overflow-hidden shadow-2xl">
+      <v-card-title class="bg-red-600 text-white font-bold px-6 py-4 text-xl">
+        Confirmar Exclusão
       </v-card-title>
-      <v-card-text class="pa-4 text-center text-lg">
-        Deseja excluir a unidade curricular <b>{{ competenciaDeletando?.nome }}</b>?
+      <v-card-text class="pa-8 text-center text-lg font-medium leading-relaxed text-gray-700">
+        Tem certeza de que deseja excluir a unidade curricular <b>{{ competenciaDeletando?.nome }}</b>? Esta ação não pode ser desfeita.
       </v-card-text>
-      <v-card-actions class="pa-4">
-        <v-spacer></v-spacer>
-        <v-btn color="grey" variant="text" @click="dialogDeleteCompetencia = false">Cancelar</v-btn>
-        <v-btn color="red" variant="elevated" @click="confirmarDeleteCompetencia">Excluir</v-btn>
+      <v-card-actions class="pa-6 pt-0 flex justify-end gap-3">
+        <v-btn color="grey-darken-1" variant="text" class="font-bold px-6 uppercase tracking-wide" @click="dialogDeleteCompetencia = false">Cancelar</v-btn>
+        <v-btn variant="elevated" color="white" class="text-gray-800 font-bold px-8 shadow-sm border uppercase tracking-wide" @click="confirmarDeleteCompetencia">Excluir</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

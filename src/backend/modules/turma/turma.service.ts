@@ -173,111 +173,10 @@ export class TurmaService {
       const profTurmaRepo = AppDataSource.getRepository(ProfessorTurma);
       const profUCRepo = AppDataSource.getRepository(ProfessorUC);
 
-      // ============================================================
-      // Regra 2: Remoção de UC → remoção condicional de professor
-      // Um professor só é removido da turma se NENHUMA das UCs
-      // restantes na turma faz parte das competências dele.
-      // ============================================================
-      const deletedUCIds = oldUCIds.filter(id => !newUCIds.includes(id));
-
-      if (deletedUCIds.length > 0 && newUCIds.length > 0) {
-        // Há UCs deletadas, mas ainda restam UCs na turma
-        const profsNaTurma = await profTurmaRepo.find({ where: { idTurma, status: true } });
-
-        for (const pt of profsNaTurma) {
-          // Verificar se o professor tem competência em alguma UC que AINDA está na turma
-          const ucsRestantes = await profUCRepo.find({
-            where: { idProfessor: pt.idProfessor, idUC: In(newUCIds), status: true }
-          });
-          if (ucsRestantes.length === 0) {
-            // Professor não tem nenhuma UC restante → remove da turma
-            await profTurmaRepo.remove(pt);
-          }
-        }
-      } else if (deletedUCIds.length > 0 && newUCIds.length === 0) {
-        // Todas as UCs foram removidas → remover todos os professores
-        await profTurmaRepo.delete({ idTurma });
-      }
-
-      // ============================================================
-      // Regra 3: Troca de período de um dia → remoção condicional
-      // Se o período de um dia mudou, os professores que atuavam
-      // naquele dia são removidos, EXCETO se também atuam em outro
-      // dia da turma que não mudou.
-      // ============================================================
-      const oldPeriodoPorDia: Record<string, string> = {};
-      for (const h of oldHorarios) {
-        const dia = h.diaSemana.toLowerCase();
-        if (!oldPeriodoPorDia[dia]) oldPeriodoPorDia[dia] = h.periodo;
-      }
-
-      const newPeriodoPorDia: Record<string, string> = {};
-      for (const h of horariosResolvidos) {
-        const dia = h.diaSemana.toLowerCase();
-        if (!newPeriodoPorDia[dia]) newPeriodoPorDia[dia] = h.periodo;
-      }
-
-      // Dias que tiveram o período alterado
-      const diasComPeriodoAlterado: string[] = [];
-      for (const dia of Object.keys(oldPeriodoPorDia)) {
-        if (newPeriodoPorDia[dia] && oldPeriodoPorDia[dia] !== newPeriodoPorDia[dia]) {
-          diasComPeriodoAlterado.push(dia);
-        }
-      }
-
-      // Dias que foram completamente removidos da grade
-      const diasRemovidos: string[] = Object.keys(oldPeriodoPorDia).filter(
-        dia => !newPeriodoPorDia[dia]
-      );
-
-      const diasAfetados = [...diasComPeriodoAlterado, ...diasRemovidos];
-
-      if (diasAfetados.length > 0) {
-        // Dias que NÃO foram afetados (permanecem iguais)
-        const diasEstaveis = Object.keys(newPeriodoPorDia).filter(
-          dia => !diasAfetados.includes(dia)
-        );
-
-        // UCs dos dias estáveis
-        const ucsDosDiasEstaveis = horariosResolvidos
-          .filter(h => diasEstaveis.includes(h.diaSemana.toLowerCase()))
-          .map(h => h.idUC);
-        const ucsEstaveisSet = [...new Set(ucsDosDiasEstaveis)];
-
-        // UCs dos dias afetados (da grade antiga)
-        const ucsDosOldDiasAfetados = oldHorarios
-          .filter(h => diasAfetados.includes(h.diaSemana.toLowerCase()))
-          .map(h => h.idUC);
-        const ucsAfetadasSet = [...new Set(ucsDosOldDiasAfetados)];
-
-        if (ucsAfetadasSet.length > 0) {
-          const profsNaTurma = await profTurmaRepo.find({ where: { idTurma, status: true } });
-
-          for (const pt of profsNaTurma) {
-            // Professor tem competência em UC de dia afetado?
-            const profUCsAfetadas = await profUCRepo.find({
-              where: { idProfessor: pt.idProfessor, idUC: In(ucsAfetadasSet), status: true }
-            });
-
-            if (profUCsAfetadas.length > 0) {
-              // Professor estava em dia afetado. Ele tem UC em dia estável?
-              if (ucsEstaveisSet.length > 0) {
-                const profUCsEstaveis = await profUCRepo.find({
-                  where: { idProfessor: pt.idProfessor, idUC: In(ucsEstaveisSet), status: true }
-                });
-                if (profUCsEstaveis.length === 0) {
-                  // Não tem UC em nenhum dia estável → remove
-                  await profTurmaRepo.remove(pt);
-                }
-                // Se tem UC em dia estável → mantém
-              } else {
-                // Não há dias estáveis → remove
-                await profTurmaRepo.remove(pt);
-              }
-            }
-          }
-        }
-      }
+      // Os professores vinculados a slots que forem removidos em saveHorarios 
+      // serão automaticamente desalocados pelo CASCADE do banco de dados.
+      // Caso um professor possua múltiplos slots, ele permanecerá na turma
+      // enquanto tiver ao menos uma atribuição ativa.
 
       await this.repo.saveHorarios(idTurma, horariosResolvidos);
     }
@@ -339,10 +238,8 @@ export class TurmaService {
       let idUC = h.idUC;
 
       if (!idUC && h.nomeUC) {
-        const where: Record<string, unknown> = { nome: h.nomeUC };
-        if (idArea) where.idArea = idArea;
-
-        const uc = await ucRepo.findOne({ where: where as any });
+        // Buscamos a UC pelo nome. Removido o filtro por idArea para permitir UCs de qualquer área.
+        const uc = await ucRepo.findOne({ where: { nome: h.nomeUC } });
         if (!uc) {
           throw new Error(`Unidade curricular "${h.nomeUC}" não encontrada`);
         }

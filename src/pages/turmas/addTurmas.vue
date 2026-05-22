@@ -127,6 +127,28 @@ const totalAulas = computed(() => {
 const selectedAreas = ref(null);
 // Inicializamos como uma lista vazia, que será preenchida com dados do banco
 const areasDisponiveis = ref([]);
+const filteredAreas = computed(() => {
+  if (!isOpp.value) return areasDisponiveis.value;
+  const oppLogado = todosOpps.value.find(o => o.idCadastro === usuarioLogado?.idUsuario);
+  if (!oppLogado || !oppLogado.oppAreas) return [];
+  const idsPermitidos = oppLogado.oppAreas.map(oa => oa.idArea);
+  return areasDisponiveis.value.filter(area => idsPermitidos.includes(area.value));
+});
+
+const snackbar = ref({
+  show: false,
+  text: "",
+  color: "red",
+  icon: "mdi-alert-circle",
+  timeout: 5000
+});
+
+function showAlert(text, color = "red", icon = "mdi-alert-circle") {
+  snackbar.value.text = text;
+  snackbar.value.color = color;
+  snackbar.value.icon = icon;
+  snackbar.value.show = true;
+}
 
 const tipoCurso = ref("tec");
 
@@ -220,7 +242,11 @@ const diaDoModal = ref(null);
 const buscaUC = ref("");
 
 // Guarda temporariamente as UCs marcadas no modal antes de salvar
-const ucsSelecionadasTemp = ref([]); // Array de objetos { uc, periodo }
+const ucsSelecionadasTemp = ref([]); // Array de objetos { idUC, uc, periodo }
+
+// Filtro de área dentro do modal de UC
+const areaFiltroModal = ref(null);
+const todasUnidadesCurriculares = ref([]);
 
 // Guarda as UCs salvas de cada dia
 const ucsSalvas = ref({
@@ -277,9 +303,9 @@ const periodosDisponiveisParaOModal = computed(() => {
 //
 // Para INTEGRAL: a lógica é simples — cada slot é exclusivo (1:1).
 // Para PERÍODO SIMPLES: "Manhã" conflita com M01 e M02 (e vice-versa).
-function periodosDisponiveisPara(ucNome) {
+function periodosDisponiveisPara(ucId) {
   const basePeriodos = periodosDisponiveisParaOModal.value;
-  const outrasUcs = ucsSelecionadasTemp.value.filter(item => item.uc !== ucNome && item.periodo);
+  const outrasUcs = ucsSelecionadasTemp.value.filter(item => item.idUC !== ucId && item.periodo);
   
   // Tabela de conflitos BIDIRECIONAL:
   // Se alguém escolheu "Manhã", bloqueia M01, M02 E as combinações integrais.
@@ -312,55 +338,75 @@ function periodosDisponiveisPara(ucNome) {
   return basePeriodos.filter(p => !periodosBloqueados.has(p));
 }
 
+// DIDÁTICA: Filtra as competências mostradas no modal com base na busca e na área selecionada no modal
+const filteredCompetencias = computed(() => {
+  let list = todasUnidadesCurriculares.value;
+
+  // Filtro por Área (dentro do modal)
+  if (areaFiltroModal.value) {
+    list = list.filter(uc => uc.idArea === areaFiltroModal.value);
+  }
+
+  // Filtro por busca de texto
+  if (buscaUC.value) {
+    const search = buscaUC.value.toLowerCase();
+    list = list.filter(uc => uc.nome.toLowerCase().includes(search));
+  }
+
+  return list;
+});
+
 function abrirModal(diaValue) {
   diaDoModal.value = diaValue;
   buscaUC.value = "";
+  // Por padrão, o filtro do modal começa com a área principal da turma
+  areaFiltroModal.value = selectedAreas.value;
   ucsSelecionadasTemp.value = ucsSalvas.value[diaValue].map(item => ({ ...item }));
   modalAberto.value = true;
 }
 
-function toggleUCSelection(ucNome) {
-  const index = ucsSelecionadasTemp.value.findIndex(item => item.uc === ucNome);
+function toggleUCSelection(ucObj) {
+  const index = ucsSelecionadasTemp.value.findIndex(item => item.idUC === ucObj.idUC);
   if (index > -1) {
     ucsSelecionadasTemp.value.splice(index, 1);
   } else {
-    ucsSelecionadasTemp.value.push({ uc: ucNome, periodo: "" });
+    ucsSelecionadasTemp.value.push({ idUC: ucObj.idUC, uc: ucObj.nome, periodo: "" });
   }
   // Força reatividade no Vue
   ucsSelecionadasTemp.value = [...ucsSelecionadasTemp.value];
 }
 
-function isUCSelected(ucNome) {
-  return ucsSelecionadasTemp.value.some(item => item.uc === ucNome);
+function isUCSelected(idUC) {
+  return ucsSelecionadasTemp.value.some(item => item.idUC === idUC);
 }
 
-function getSelectedUCPeriod(ucNome) {
-  const item = ucsSelecionadasTemp.value.find(item => item.uc === ucNome);
+function getSelectedUCPeriod(idUC) {
+  const item = ucsSelecionadasTemp.value.find(item => item.idUC === idUC);
   return item ? item.periodo : "";
 }
 
-function updateUCPeriod(ucNome, periodo) {
+function updateUCPeriod(idUC, periodo) {
+  const item = ucsSelecionadasTemp.value.find(item => item.idUC === idUC);
+  if (!item) return;
+
   // Validação ESTREITA: Impede que o Vue ou o Vuetify burlem a seleção (caso de lentidão na reatividade)
   if (periodo !== "") {
-    const disponiveis = periodosDisponiveisPara(ucNome);
+    const disponiveis = periodosDisponiveisPara(idUC);
     if (!disponiveis.includes(periodo)) {
-      alert(`Erro: O período '${periodo}' não pode ser selecionado devido a um conflito de horário com outra matéria já marcada.`);
+      showAlert(`Erro: O período '${periodo}' não pode ser selecionado devido a um conflito de horário com outra matéria já marcada.`, "warning", "mdi-clock-alert");
       return; // Bloqueia a alteração
     }
   }
 
-  const item = ucsSelecionadasTemp.value.find(item => item.uc === ucNome);
-  if (item) {
-    item.periodo = periodo;
-    // DIDÁTICA: Recria o array para forçar o Vue a re-renderizar a tela inteira do modal instantaneamente
-    ucsSelecionadasTemp.value = [...ucsSelecionadasTemp.value];
-  }
+  item.periodo = periodo;
+  // DIDÁTICA: Recria o array para forçar o Vue a re-renderizar a tela inteira do modal instantaneamente
+  ucsSelecionadasTemp.value = [...ucsSelecionadasTemp.value];
 }
 
 function salvarUCs() {
   const ucsSemPeriodo = ucsSelecionadasTemp.value.filter(item => !item.periodo);
   if (ucsSemPeriodo.length > 0) {
-    alert("Por favor, selecione o período para todas as unidades curriculares marcadas.");
+    showAlert("Por favor, selecione o período para todas as unidades curriculares marcadas.", "warning");
     return;
   }
   ucsSalvas.value[diaDoModal.value] = [...ucsSelecionadasTemp.value];
@@ -451,21 +497,44 @@ watch(selectedAreas, async (novaAreaId) => {
 onMounted(async () => {
   await carregarAreas();
   await carregarOpps();
+  await carregarTodasUCs();
 
-  // Se o usuário logado for OPP, filtra áreas e auto-preenche o campo OPP Responsável
+  // Se o usuário logado for OPP, auto-preenche o campo OPP Responsável
   if (isOpp.value) {
     const oppLogado = todosOpps.value.find(o => o.idCadastro === usuarioLogado?.idUsuario);
-    if (oppLogado && oppLogado.oppAreas) {
-      // Filtra as áreas disponíveis para mostrar apenas as do OPP
-      const idsAreasPermitidas = oppLogado.oppAreas.map(oa => oa.idArea);
-      areasDisponiveis.value = areasDisponiveis.value.filter(a => idsAreasPermitidas.includes(a.value));
-
+    if (oppLogado) {
       // Preenche automaticamente o OPP Responsável com o próprio usuário
       selectedOpps.value = oppLogado.idOPP;
+      // Alimentamos a lista de OPPs com o próprio usuário por padrão, mas permitiremos mudar se for o caso
       oppsResponsavel.value = [{ label: oppLogado.cadastro.nome, value: oppLogado.idOPP }];
     }
   }
 });
+
+/**
+ * Carrega todas as unidades curriculares do sistema para serem usadas no modal
+ */
+async function carregarTodasUCs() {
+  try {
+    const response = await fetch("http://localhost:3001/api/competencias");
+    const data = await response.json();
+    todasUnidadesCurriculares.value = data.map(uc => {
+      let carga = "";
+      if (uc.descricao) {
+        const match = uc.descricao.match(/(\d+h)/i);
+        if (match) carga = match[1];
+      }
+      return {
+        idUC: uc.idUC,
+        nome: uc.nome,
+        idArea: uc.idArea,
+        carga: carga || undefined
+      };
+    });
+  } catch (error) {
+    console.error("Erro ao carregar todas as UCs:", error);
+  }
+}
 
 // --------------------------------------------------------
 // DIDÁTICA: Função para buscar as áreas no banco de dados.
@@ -560,19 +629,19 @@ function validarCoberturaIntegral() {
 
 async function salvarTurmaNoNavegador() {
   if (!nomeTurma.value) {
-    alert("Por favor, preencha o nome da turma!");
+    showAlert("Por favor, preencha o nome da turma!", "warning");
     return;
   }
   if (!dataInicio.value || !dataFim.value) {
-    alert("Por favor, preencha as datas de início e término!");
+    showAlert("Por favor, preencha as datas de início e término!", "warning");
     return;
   }
   if (!selectedAreas.value) {
-    alert("Por favor, selecione uma área!");
+    showAlert("Por favor, selecione uma área!", "warning");
     return;
   }
   if (!selectedOpps.value) {
-    alert("Por favor, selecione o OPP responsável!");
+    showAlert("Por favor, selecione o OPP responsável!", "warning");
     return;
   }
 
@@ -583,20 +652,21 @@ async function salvarTurmaNoNavegador() {
       horarios.push({
         diaSemana,
         periodo: ucItem.periodo,
+        idUC: ucItem.idUC,
         nomeUC: ucItem.uc,
       });
     }
   }
 
   if (horarios.length === 0) {
-    alert("Configure ao menos uma UC com período na grade semanal!");
+    showAlert("Configure ao menos uma UC com período na grade semanal!", "warning");
     return;
   }
 
   // Validação de cobertura integral: se o dia é integral, TODOS os turnos precisam ser cobertos
   const errosCobertura = validarCoberturaIntegral();
   if (errosCobertura.length > 0) {
-    alert("Erro na grade semanal:\n\n" + errosCobertura.join("\n"));
+    showAlert("Erro na grade semanal:\n\n" + errosCobertura.join("\n"), "error", "mdi-alert-octagon");
     return;
   }
 
@@ -614,7 +684,8 @@ async function salvarTurmaNoNavegador() {
     });
     router.push('/turmas');
   } catch (error) {
-    alert(error.message || "Erro ao criar turma");
+    console.error("ERRO AO SALVAR:", error);
+    showAlert("Erro ao salvar turma: " + error.message, "error", "mdi-alert-octagon");
   }
 }
 
@@ -672,7 +743,7 @@ function isIntegral(periodo) {
             Áreas
           </p>
           <!-- DIDÁTICA: Removemos o atributo 'multiple' para virar seleção única -->
-          <v-select v-model="selectedAreas" placeholder="Selecione..." persistent-placeholder :items="areasDisponiveis"
+          <v-select v-model="selectedAreas" placeholder="Selecione..." persistent-placeholder :items="filteredAreas"
             item-title="title" item-value="value" variant="filled" hide-details></v-select>
         </div>
       </div>
@@ -683,8 +754,9 @@ function isIntegral(periodo) {
             Opp Responsável
           </p>
           <!-- DIDÁTICA: A lista ':items' agora será preenchida dinamicamente pelo 'watch' -->
+          <!-- DIDÁTICA: Para OPP, permitimos trocar se ele escolheu uma área que não é a dele -->
           <v-select v-model="selectedOpps" placeholder="Selecione uma Área primeiro..." persistent-placeholder :items="oppsResponsavel" item-title="label"
-            item-value="value" variant="filled" hide-details :disabled="!selectedAreas || isOpp"></v-select>
+            item-value="value" variant="filled" hide-details :disabled="!selectedAreas"></v-select>
         </div>
 
         <div class="">
@@ -1007,41 +1079,111 @@ function isIntegral(periodo) {
     <v-btn color="red" class="bg-red-600 text-white" @click="salvarTurmaNoNavegador()">Adicionar Turma</v-btn>
   </div>
 
-  <!-- Modal de Unidade Curricular -->
-  <v-dialog v-model="modalAberto" max-width="520">
-    <v-card class="pa-5 rounded-xl">
-      <v-card-title class="text-lg font-bold">Selecionar Unidades Curriculares</v-card-title>
+  <!-- Modal de Unidade Curricular - Padronizado e Elegante -->
+  <v-dialog v-model="modalAberto" max-width="550" persistent>
+    <v-card class="rounded-lg border-t-4 border-red-600 shadow-xl dark:bg-[#121212]">
+      <!-- Título com o padrão do sistema -->
+      <v-card-title class="px-6 pt-6 pb-2">
+        <h2 class="text-xl font-bold text-gray-800 dark:text-white">Selecionar Unidades Curriculares</h2>
+        <p class="text-[12px] text-gray-500 font-medium">Escolha as matérias que compõem este dia da turma</p>
+      </v-card-title>
 
-      <!-- Campo de busca -->
-      <v-text-field v-model="buscaUC" label="Buscar unidade curricular..." variant="filled" hide-details
-        prepend-inner-icon="mdi-magnify" class="mb-4"></v-text-field>
+      <v-divider class="mx-6 mb-4"></v-divider>
 
-      <!-- Lista de UCs com checkboxes + período -->
-      <div style="max-height: 350px; overflow-y: auto" class="pr-1">
-        <div v-for="(uc, index) in unidadesCurriculares" :key="index">
-          <div v-if="uc.nome.toLowerCase().includes(buscaUC.toLowerCase())"
-            class="flex items-center gap-2 mb-2 pb-2 px-4">
-            <v-checkbox :model-value="isUCSelected(uc.nome)" @update:model-value="toggleUCSelection(uc.nome)"
-              :label="uc.carga ? uc.nome + ' (' + uc.carga + ')' : uc.nome" color="red" hide-details density="compact"
-              :disabled="!isUCSelected(uc.nome) && periodosDisponiveisPara(uc.nome).length === 0"
-              class="flex-1"></v-checkbox>
-            <v-select v-if="isUCSelected(uc.nome)" :model-value="getSelectedUCPeriod(uc.nome)"
-              @update:model-value="updateUCPeriod(uc.nome, $event)" :items="periodosDisponiveisPara(uc.nome)" label="Período"
-              variant="outlined" density="compact" hide-details class="max-w-[130px] mt-2"></v-select>
-          </div>
+      <!-- Área de Filtros - Seguindo o padrão de inputs do formulário -->
+      <div class="px-6 space-y-3 mb-4">
+        <div>
+          <p class="mb-1 font-bold text-[12px] text-gray-500 uppercase tracking-wide">Filtrar por Área</p>
+          <v-select v-model="areaFiltroModal" :items="areasDisponiveis" item-title="title" item-value="value"
+            placeholder="Selecione a área..." variant="filled" density="compact" hide-details clearable></v-select>
+        </div>
+        
+        <div>
+          <p class="mb-1 font-bold text-[12px] text-gray-500 uppercase tracking-wide">Buscar Unidade</p>
+          <v-text-field v-model="buscaUC" placeholder="Digite o nome da UC..." variant="filled" hide-details
+            prepend-inner-icon="mdi-magnify" density="compact"></v-text-field>
         </div>
       </div>
 
-      <!-- Botões do modal -->
-      <v-card-actions class="justify-end mt-4">
-        <v-btn variant="text" @click="fecharModal()">Cancelar</v-btn>
-        <v-btn color="red" class="bg-red-600 text-white" @click="salvarUCs()">Salvar</v-btn>
+      <!-- Lista de UCs - Voltando ao layout original -->
+      <div style="max-height: 350px; overflow-y: auto" class="px-6 pt-2">
+        <div v-for="(uc, index) in filteredCompetencias" :key="uc.idUC" class="flex items-center gap-2 mb-4">
+          <v-checkbox :model-value="isUCSelected(uc.idUC)" @update:model-value="toggleUCSelection(uc)"
+            :label="uc.carga ? uc.nome + ' (' + uc.carga + ')' : uc.nome" color="red" hide-details density="compact"
+            :disabled="!isUCSelected(uc.idUC) && periodosDisponiveisPara(uc.nome).length === 0"
+            class="flex-1"></v-checkbox>
+          
+          <v-select v-if="isUCSelected(uc.idUC)" :model-value="getSelectedUCPeriod(uc.idUC)"
+            @update:model-value="updateUCPeriod(uc.idUC, $event)" :items="periodosDisponiveisPara(uc.nome)" label="Período"
+            variant="outlined" density="compact" hide-details class="max-w-[130px]"></v-select>
+        </div>
+        <div v-if="filteredCompetencias.length === 0" class="text-center py-10 text-gray-400 font-bold uppercase text-xs">
+          Nenhuma unidade encontrada
+        </div>
+      </div>
+
+      <!-- Botões de Ação - Padronizados -->
+      <v-card-actions class="px-6 py-6 pt-2">
+        <v-spacer></v-spacer>
+        <v-btn variant="outlined" color="red" class="px-6 text-none font-bold" @click="fecharModal()">
+          Cancelar
+        </v-btn>
+        <v-btn color="red" class="bg-red-600 text-white px-8 text-none font-bold shadow-md" @click="salvarUCs()">
+          Salvar Seleção
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <!-- Snackbar de Alertas Premium -->
+  <v-snackbar 
+    v-model="snackbar.show" 
+    :color="snackbar.color" 
+    :timeout="snackbar.timeout" 
+    location="top right" 
+    class="mt-4 mr-4"
+    elevation="24"
+    rounded="xl"
+  >
+    <div class="flex items-start gap-4 p-1">
+      <v-avatar :color="snackbar.color" size="40" class="elevation-3 flex-shrink-0">
+        <v-icon :icon="snackbar.icon" color="white" size="24"></v-icon>
+      </v-avatar>
+      <div class="flex-grow text-white">
+        <p class="text-xs font-black uppercase tracking-widest opacity-70 mb-0.5">Notificação</p>
+        <p class="text-[13px] font-bold leading-tight">{{ snackbar.text }}</p>
+      </div>
+      <v-btn icon="mdi-close" variant="text" color="white" @click="snackbar.show = false" size="small" class="opacity-50 hover:opacity-100 transition-opacity"></v-btn>
+    </div>
+    
+    <template v-slot:text>
+      <v-progress-linear
+        indeterminate
+        absolute
+        bottom
+        height="3"
+        color="white"
+        class="rounded-b-xl opacity-30"
+      ></v-progress-linear>
+    </template>
+  </v-snackbar>
 </template>
 
 <style scoped>
+/* Estilos de transição e scroll */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 10px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #333;
+}
+
 /* Estilos para o fundo e bordas dos chips selecionados */
 .bg-manha {
   background-color: #fef3c7;

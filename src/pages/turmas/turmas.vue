@@ -2,7 +2,9 @@
 import { ref, computed, onMounted } from "vue";
 import Menu from '@/components/Menu.vue';
 import ModalEditarTurma from "@/components/ModalEditarTurma.vue";
-import { listarTurmas, excluirTurma, editarTurma } from "@/services/api";
+import { listarTurmas, excluirTurma, editarTurma, getUsuarioLogado } from "@/services/api";
+
+const usuarioLogado = getUsuarioLogado();
 
 const carregando = ref(false);
 const erro = ref("");
@@ -43,6 +45,50 @@ function abrirEdicao(turma) {
     editModal.value = true;
 }
 
+// ====================== SNACKBAR STATE ======================
+const snackbar = ref({
+  show: false,
+  text: "",
+  color: "success",
+  icon: "mdi-check-circle",
+  timeout: 4000
+});
+
+function showAlert(text, color = "success", icon = "mdi-check-circle") {
+  snackbar.value = {
+    show: true,
+    text,
+    color,
+    icon,
+    timeout: 4000
+  };
+}
+
+// ====================== DIALOG STATE ======================
+const confirmDialog = ref({
+  show: false,
+  item: "",
+  onConfirm: () => {}
+});
+
+function abrirConfirmacaoExclusao(turma) {
+  confirmDialog.value = {
+    show: true,
+    item: `a turma "${turma.label}"`,
+    onConfirm: () => executarExclusaoTurma(turma.idTurma)
+  };
+}
+
+async function executarExclusaoTurma(idTurma) {
+    try {
+        await excluirTurma(idTurma);
+        showAlert("Turma excluída com sucesso!", "success");
+        await carregarTurmas();
+    } catch (e) {
+        showAlert(formatarErro(e.message) || "Erro ao excluir turma", "error", "mdi-alert-circle");
+    }
+}
+
 async function salvarTurma(form) {
     if (!turmaParaEditar.value?.idTurma) {
         editModal.value = false;
@@ -59,19 +105,10 @@ async function salvarTurma(form) {
             idArea: form.idArea,
         });
         editModal.value = false;
+        showAlert("Turma salva com sucesso!");
         await carregarTurmas();
     } catch (e) {
-        alert(formatarErro(e.message) || "Erro ao salvar turma");
-    }
-}
-
-async function excluirTurmaCard(turma) {
-    if (!confirm(`Excluir a turma "${turma.label}"?`)) return;
-    try {
-        await excluirTurma(turma.idTurma);
-        await carregarTurmas();
-    } catch (e) {
-        alert(formatarErro(e.message) || "Erro ao excluir turma");
+        showAlert(formatarErro(e.message) || "Erro ao salvar turma", "error", "mdi-alert-circle");
     }
 }
 
@@ -227,7 +264,7 @@ const filteredTurmas = computed(() => {
                                 @click="abrirEdicao(turma)"
                                 :class="{ 'text-green-900': turma.modalidade === 'cai', 'text-blue-900': turma.modalidade === 'fic', 'text-orange-900': turma.modalidade === 'tec' }"></v-btn>
                             <v-btn icon="mdi-delete" variant="text" color="primary"
-                                @click="excluirTurmaCard(turma)"
+                                @click="abrirConfirmacaoExclusao(turma)"
                                 :class="{ 'text-green-900': turma.modalidade === 'cai', 'text-blue-900': turma.modalidade === 'fic', 'text-orange-900': turma.modalidade === 'tec' }"></v-btn>
                         </div>
                     </v-card-title>
@@ -555,6 +592,55 @@ const filteredTurmas = computed(() => {
         </v-card>
     </v-dialog>
 
+    <!-- Snackbar de Alertas Premium -->
+    <v-snackbar 
+      v-model="snackbar.show" 
+      :color="snackbar.color" 
+      :timeout="snackbar.timeout" 
+      location="top right" 
+      class="mt-4 mr-4"
+      elevation="24"
+      rounded="xl"
+    >
+      <div class="flex items-start gap-4 p-1">
+        <v-avatar :color="snackbar.color" size="40" class="elevation-3 flex-shrink-0">
+          <v-icon :icon="snackbar.icon" color="white" size="24"></v-icon>
+        </v-avatar>
+        <div class="flex-grow text-white">
+          <p class="text-xs font-black uppercase tracking-widest opacity-70 mb-0.5">Notificação</p>
+          <p class="text-[13px] font-bold leading-tight">{{ snackbar.text }}</p>
+        </div>
+        <v-btn icon="mdi-close" variant="text" color="white" @click="snackbar.show = false" size="small" class="opacity-50 hover:opacity-100 transition-opacity"></v-btn>
+      </div>
+      
+      <template v-slot:text>
+        <v-progress-linear
+          indeterminate
+          absolute
+          bottom
+          height="3"
+          color="white"
+          class="rounded-b-xl opacity-30"
+        ></v-progress-linear>
+      </template>
+    </v-snackbar>
+
+    <!-- Dialog de Confirmação Customizado -->
+    <v-dialog v-model="confirmDialog.show" max-width="450">
+        <v-card class="rounded-xl overflow-hidden shadow-2xl">
+            <v-card-title class="bg-red-600 text-white font-bold px-6 py-4 text-xl">
+                Confirmar Exclusão
+            </v-card-title>
+            <v-card-text class="pa-8 text-center text-lg font-medium leading-relaxed text-gray-700">
+                Tem certeza de que deseja excluir <b>{{ confirmDialog.item }}</b>? Esta ação não pode ser desfeita.
+            </v-card-text>
+            <v-card-actions class="pa-6 pt-0 flex justify-end gap-3">
+                <v-btn variant="text" color="grey-darken-1" class="font-bold px-6 uppercase tracking-wide" @click="confirmDialog.show = false">Cancelar</v-btn>
+                <v-btn variant="elevated" color="white" class="text-gray-800 font-bold px-8 shadow-sm border uppercase tracking-wide" 
+                    @click="confirmDialog.onConfirm(); confirmDialog.show = false">Excluir</v-btn>
+            </v-card-actions>
+        </v-card>
+    </v-dialog>
 </template>
 
 

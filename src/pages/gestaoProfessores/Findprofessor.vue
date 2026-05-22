@@ -835,7 +835,7 @@ onMounted(() => {
       </v-card-text>
       <v-card-actions class="justify-center pb-4 gap-2">
         <v-btn
-          variant="outlined"
+          variant="elevated"
           class="rounded-lg px-6"
           @click="showConfirmDialog = false"
           >Cancelar</v-btn
@@ -843,7 +843,7 @@ onMounted(() => {
         <v-btn
           color="red"
           variant="elevated"
-          class="rounded-lg px-6 text-white"
+          class="rounded-lg px-6 text-white bg-red-600"
           :loading="operacaoEmAndamento"
           @click="executarDesignacao"
           >Confirmar</v-btn
@@ -878,35 +878,17 @@ onMounted(() => {
   </v-dialog>
 
   <!-- Dialog: Remover Professor -->
-  <v-dialog v-model="showRemoveDialog" max-width="420">
-    <v-card class="rounded-xl pa-2">
-      <v-card-text class="text-center pt-6">
-        <v-avatar color="orange-lighten-4" size="56" class="mb-4">
-          <v-icon size="28" color="orange">mdi-account-minus</v-icon>
-        </v-avatar>
-        <h3 class="text-lg font-bold mb-2">Remover Professor</h3>
-        <p class="text-sm text-gray-600">
-          Deseja realmente remover
-          <strong>{{ professorParaRemover?.nome }}</strong> da turma
-          <strong>{{ turmaSelecionada?.label }}</strong
-          >?
-        </p>
+  <v-dialog v-model="showRemoveDialog" max-width="450">
+    <v-card class="rounded-xl overflow-hidden shadow-2xl">
+      <v-card-title class="bg-red-600 text-white font-bold px-6 py-4 text-xl">
+        Confirmar Remoção
+      </v-card-title>
+      <v-card-text class="pa-8 text-center text-lg font-medium leading-relaxed text-gray-700">
+        Tem certeza de que deseja remover <b>{{ professorParaRemover?.nome }}</b> da turma <b>{{ turmaSelecionada?.label }}</b>?
       </v-card-text>
-      <v-card-actions class="justify-center pb-4 gap-2">
-        <v-btn
-          variant="outlined"
-          class="rounded-lg px-6"
-          @click="showRemoveDialog = false"
-          >Cancelar</v-btn
-        >
-        <v-btn
-          color="orange"
-          variant="elevated"
-          class="rounded-lg px-6 text-white"
-          :loading="operacaoEmAndamento"
-          @click="executarRemocao"
-          >Remover</v-btn
-        >
+      <v-card-actions class="pa-6 pt-0 flex justify-end gap-3">
+        <v-btn variant="text" color="grey-darken-1" class="font-bold px-6 uppercase tracking-wide" @click="showRemoveDialog = false">Cancelar</v-btn>
+        <v-btn variant="elevated" color="white" class="text-gray-800 font-bold px-8 shadow-sm border uppercase tracking-wide" :loading="operacaoEmAndamento" @click="executarRemocao">Excluir</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
