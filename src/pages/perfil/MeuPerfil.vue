@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import Menu from '@/components/Menu.vue'
 import { getUsuarioLogado, buscarMeuPerfil, atualizarMeuPerfil, alterarMinhaSenha } from '@/services/api'
 
 const router = useRouter()
@@ -174,17 +173,18 @@ onMounted(() => {
 </script>
 
 <template>
-  <Menu />
-
-  <div class="min-h-screen pb-16">
+  <div>
+  <div class="pb-16">
     <!-- Header com gradiente -->
     <div class="relative overflow-hidden">
-      <div class="relative px-4 md:px-10 lg:px-20 xl:px-40 pt-10 pb-24">
-        <div class="flex items-center gap-3">
-          <v-icon icon="mdi-account-circle-outline" size="32" class=""></v-icon>
-          <div class="">
-            <h1 class="text-3xl md:text-4xl font-semibold text-black tracking-tight">Meu Perfil</h1>
-            <p class="text-sm mt-1 text-black">Gerencie suas informações pessoais</p>
+      <div class="relative px-4 md:px-10 lg:px-20 xl:px-40 mt-8 mb-6 pb-24">
+        <div class="flex items-center gap-3 border-b border-gray-200 dark:border-gray-700 pb-4 w-full">
+          <div class="bg-red-50 dark:bg-red-950/30 p-2.5 rounded-xl text-red-600 dark:text-red-400 flex items-center justify-center shadow-sm">
+            <v-icon icon="mdi-account-circle" size="28"></v-icon>
+          </div>
+          <div>
+            <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">Meu Perfil</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Gerencie suas informações pessoais e credenciais de acesso.</p>
           </div>
         </div>
       </div>
@@ -406,4 +406,5 @@ onMounted(() => {
       </v-btn>
     </template>
   </v-snackbar>
+  </div>
 </template>

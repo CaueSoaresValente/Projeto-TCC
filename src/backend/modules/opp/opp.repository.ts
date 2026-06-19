@@ -6,7 +6,13 @@ export class OPPRepository {
 
   async findAll(): Promise<OPP[]> {
     return await this.repo.find({
-      relations: ['cadastro', 'oppAreas']
+      where: {
+        status: true,
+        cadastro: {
+          status: true
+        }
+      },
+      relations: ['cadastro', 'oppAreas', 'oppAreas.area']
     });
   }
 

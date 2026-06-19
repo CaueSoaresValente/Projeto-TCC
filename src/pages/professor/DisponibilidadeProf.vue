@@ -15,7 +15,6 @@
 
 import { ref, computed, onMounted } from "vue";
 import { useTheme } from "vuetify";
-import Menu from "@/components/Menu.vue";
 import { getUsuarioLogado } from "@/services/api";
 
 const theme = useTheme();
@@ -109,7 +108,7 @@ const contarPeriodos = (dia) => {
 // Busca as disponibilidades salvas no banco e preenche o estado local
 const carregarDisponibilidades = async (professorId) => {
   try {
-    const response = await fetch(`http://localhost:3001/api/professor/${professorId}/disponibilidade`);
+    const response = await fetch(`/api/professor/${professorId}/disponibilidade`);
     if (!response.ok) return;
 
     const dados = await response.json();
@@ -142,7 +141,7 @@ const salvarDisponibilidades = async () => {
   salvando.value = true;
   try {
     const response = await fetch(
-      `http://localhost:3001/api/professor/${idProfessor.value}/disponibilidade`,
+      `/api/professor/${idProfessor.value}/disponibilidade`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -173,7 +172,7 @@ onMounted(async () => {
 
     // Busca o professor pelo idCadastro do login
     const response = await fetch(
-      `http://localhost:3001/api/professor/cadastro/${usuario.idUsuario}`
+      `/api/professor/cadastro/${usuario.idUsuario}`
     );
 
     if (response.ok) {
@@ -190,20 +189,24 @@ onMounted(async () => {
 </script>
 
 <template>
-  <Menu />
-
-  <div class="mx-5 md:mx-20! lg:mx-32! mt-12 pb-24">
+  <div>
+  <div class="px-4 md:px-10 lg:px-20 xl:px-40 mt-8 pb-24">
 
     <!-- Header da Página -->
-    <div class="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4 px-2">
-      <div>
-        <h1 class="text-4xl font-black text-gray-900 dark:text-white tracking-tight">
-          Disponibilidade Semanal
-        </h1>
-        <p class="text-gray-500 dark:text-gray-400 mt-3 font-medium">
-          Selecione os períodos em que você estará disponível para lecionar. Você pode marcar
-          <span class="text-gray-800 dark:text-gray-200 font-bold">vários períodos</span> no mesmo dia.
-        </p>
+    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-red-50 dark:bg-red-950/30 p-2.5 rounded-xl text-red-600 dark:text-red-400 flex items-center justify-center shadow-sm">
+          <v-icon icon="mdi-clock-check" size="28"></v-icon>
+        </div>
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">
+            Disponibilidade Semanal
+          </h1>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Selecione os períodos em que você estará disponível para lecionar. Você pode marcar
+            <span class="text-gray-800 dark:text-gray-200 font-semibold">vários períodos</span> no mesmo dia.
+          </p>
+        </div>
       </div>
 
       <!-- Botão Salvar -->
@@ -214,7 +217,7 @@ onMounted(async () => {
         :loading="salvando"
         :disabled="carregando"
         prepend-icon="mdi-content-save-outline"
-        class="font-bold rounded-xl px-8 shrink-0"
+        class="font-bold rounded-xl px-8 shrink-0 self-end md:self-center"
         @click="salvarDisponibilidades"
       >
         Salvar Disponibilidade
@@ -351,6 +354,7 @@ onMounted(async () => {
       <v-btn color="white" variant="text" icon="mdi-close" @click="snackbar.show = false" />
     </template>
   </v-snackbar>
+  </div>
 </template>
 
 <style scoped>

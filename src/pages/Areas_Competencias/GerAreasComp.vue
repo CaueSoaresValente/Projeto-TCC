@@ -13,8 +13,7 @@
 // 5. Quando exclui, chamamos excluirArea() ou excluirCompetencia()
 // ============================================================
 
-import Menu from "@/components/Menu.vue";
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch, onBeforeUnmount } from "vue";
 
 // Importa as funções que falam com o backend
 import {
@@ -27,6 +26,7 @@ import {
   editarCompetencia,
   excluirCompetencia,
   getUsuarioLogado,
+  listarOpps,
 } from "@/services/api";
 
 // ====================== DADOS DO USUÁRIO LOGADO ======================
@@ -41,6 +41,66 @@ const areasPermitidas = computed(() => {
   if (!oppLogado || !oppLogado.oppAreas) return [];
   const idsPermitidos = oppLogado.oppAreas.map(oa => oa.idArea);
   return dadosAreas.value.filter(a => idsPermitidos.includes(a.idArea));
+});
+
+// Filtro de busca por texto (áreas e UCs)
+const pesquisa = ref("");
+const filtroArea = ref("Todas as Áreas");
+
+const areasExibidasSelect = computed(() => {
+  if (!isOpp.value) return dadosAreas.value;
+  const oppLogado = todosOpps.value.find(o => o.idCadastro === usuarioLogado?.idUsuario);
+  if (!oppLogado || !oppLogado.oppAreas) return [];
+  const idsPermitidos = oppLogado.oppAreas.map(oa => oa.idArea);
+  return dadosAreas.value.filter(a => idsPermitidos.includes(a.idArea));
+});
+
+const areasExibidas = computed(() => {
+  let filtradas = [];
+  if (!isOpp.value) {
+    filtradas = dadosAreas.value;
+  } else {
+    const oppLogado = todosOpps.value.find(o => o.idCadastro === usuarioLogado?.idUsuario);
+    if (!oppLogado || !oppLogado.oppAreas) filtradas = [];
+    else {
+      const idsPermitidos = oppLogado.oppAreas.map(oa => oa.idArea);
+      filtradas = dadosAreas.value.filter(a => idsPermitidos.includes(a.idArea));
+    }
+  }
+
+  if (pesquisa.value.trim()) {
+    const termo = pesquisa.value.toLowerCase().trim();
+    filtradas = filtradas.filter(a => a.nome.toLowerCase().includes(termo));
+  }
+  return filtradas;
+});
+
+const competenciasExibidas = computed(() => {
+  let filtradas = [];
+  if (!isOpp.value) {
+    filtradas = dadosCompetencias.value;
+  } else {
+    const oppLogado = todosOpps.value.find(o => o.idCadastro === usuarioLogado?.idUsuario);
+    if (!oppLogado || !oppLogado.oppAreas) filtradas = [];
+    else {
+      const idsPermitidos = oppLogado.oppAreas.map(oa => oa.idArea);
+      filtradas = dadosCompetencias.value.filter(c => idsPermitidos.includes(c.idArea));
+    }
+  }
+
+  // Filtro de Área
+  if (filtroArea.value && filtroArea.value !== "Todas as Áreas") {
+    filtradas = filtradas.filter(c => c.area?.nome === filtroArea.value || c.nomeArea === filtroArea.value);
+  }
+
+  if (pesquisa.value.trim()) {
+    const termo = pesquisa.value.toLowerCase().trim();
+    filtradas = filtradas.filter(c => 
+      c.nome.toLowerCase().includes(termo) || 
+      (c.area?.nome && c.area.nome.toLowerCase().includes(termo))
+    );
+  }
+  return filtradas;
 });
 
 // ====================== ESTADO DA TELA ======================
@@ -132,8 +192,8 @@ async function carregarCompetencias() {
 
 async function carregarOpps() {
   try {
-    const response = await fetch("http://localhost:3001/api/opps");
-    todosOpps.value = await response.json();
+    const data = await listarOpps();
+    todosOpps.value = data;
   } catch (error) {
     console.error("Erro ao carregar OPPs:", error);
   }
@@ -142,6 +202,22 @@ async function carregarOpps() {
 async function carregarDados() {
   erro.value = "";
   await Promise.all([carregarAreas(), carregarCompetencias(), carregarOpps()]);
+}
+
+// ====================== NOTIFICAÇÕES (SNACKBAR) ======================
+const snackbar = ref({
+  show: false,
+  text: "",
+  color: "red",
+  icon: "mdi-alert-circle",
+  timeout: 5000
+});
+
+function showAlert(text, color = "red", icon = "mdi-alert-circle") {
+  snackbar.value.text = text;
+  snackbar.value.color = color;
+  snackbar.value.icon = icon;
+  snackbar.value.show = true;
 }
 
 // ====================== AÇÕES DE ÁREA ======================
@@ -153,11 +229,12 @@ async function salvarNovaArea() {
     await criarArea({ nome: novaAreaNome.value.trim() });
     novaAreaNome.value = "";
     dialogAddArea.value = false;
+    showAlert("Área criada com sucesso!", "success", "mdi-check-circle");
     // Recarrega a lista para mostrar a nova área
     await carregarAreas();
   } catch (error) {
     console.error("Erro ao criar área:", error);
-    alert("Erro ao criar área: " + error.message);
+    showAlert("Erro ao criar área: " + error.message);
   }
 }
 
@@ -174,11 +251,12 @@ async function salvarEditArea() {
   try {
     await editarArea(areaEditando.value.idArea, { nome: areaEditNome.value.trim() });
     dialogEdit.value = false;
+    showAlert("Área atualizada com sucesso!", "success", "mdi-check-circle");
     await carregarAreas();
     await carregarCompetencias();
   } catch (error) {
     console.error("Erro ao editar área:", error);
-    alert("Erro ao editar área: " + error.message);
+    showAlert("Erro ao editar área: " + error.message);
   }
 }
 
@@ -194,11 +272,12 @@ async function confirmarDeleteArea() {
   try {
     await excluirArea(areaDeletando.value.idArea);
     dialogDelete.value = false;
+    showAlert("Área excluída com sucesso!", "success", "mdi-check-circle");
     await carregarAreas();
     await carregarCompetencias();
   } catch (error) {
     console.error("Erro ao excluir área:", error);
-    alert("Erro ao excluir área: " + error.message);
+    showAlert("Erro ao excluir área: " + error.message);
   }
 }
 
@@ -217,11 +296,12 @@ async function salvarNovaCompetencia() {
     novaCompetenciaDescricao.value = "";
     areaSelecionada.value = null;
     dialogAdd.value = false;
+    showAlert("Unidade Curricular criada com sucesso!", "success", "mdi-check-circle");
     await carregarCompetencias();
     await carregarAreas(); // Atualiza a contagem de competências por área
   } catch (error) {
     console.error("Erro ao criar competência:", error);
-    alert("Erro ao criar competência: " + error.message);
+    showAlert("Erro ao criar competência: " + error.message);
   }
 }
 
@@ -244,10 +324,11 @@ async function salvarEditCompetencia() {
       idArea: competenciaEditArea.value,
     });
     dialogEditCompetencia.value = false;
+    showAlert("Unidade Curricular atualizada com sucesso!", "success", "mdi-check-circle");
     await carregarCompetencias();
   } catch (error) {
     console.error("Erro ao editar competência:", error);
-    alert("Erro ao editar competência: " + error.message);
+    showAlert("Erro ao editar competência: " + error.message);
   }
 }
 
@@ -263,18 +344,35 @@ async function confirmarDeleteCompetencia() {
   try {
     await excluirCompetencia(competenciaDeletando.value.idUC);
     dialogDeleteCompetencia.value = false;
+    showAlert("Unidade Curricular excluída com sucesso!", "success", "mdi-check-circle");
     await carregarCompetencias();
     await carregarAreas(); // Atualiza a contagem
   } catch (error) {
     console.error("Erro ao excluir competência:", error);
-    alert("Erro ao excluir competência: " + error.message);
+    showAlert("Erro ao excluir competência: " + error.message);
   }
 }
 
 // ====================== LIFECYCLE ======================
 // onMounted = "quando a tela abrir, faça isso"
+let wsListener = null;
 onMounted(async () => {
   await carregarDados();
+
+  wsListener = (event) => {
+    const detail = event.detail;
+    if (detail.entity === 'areas' || detail.entity === 'competencias') {
+      console.log("🔄 Recarregando áreas e competências em tempo real...");
+      carregarDados();
+    }
+  };
+  window.addEventListener('websocket-data-updated', wsListener);
+});
+
+onBeforeUnmount(() => {
+  if (wsListener) {
+    window.removeEventListener('websocket-data-updated', wsListener);
+  }
 });
 
 // Limpa os campos quando o modal de adicionar competência abre
@@ -295,29 +393,43 @@ watch(dialogAddArea, (val) => {
 </script>
 
 <template>
-  <Menu />
-  <div class="px-4 md:px-10 lg:px-20 xl:px-40 pb-10">
-    <h1 class="text-3xl font-bold my-4 break-words">
-      Gerenciamento de Áreas e Unidades Curriculares
-    </h1>
+  <div>
+    <div class="px-4 md:px-10 lg:px-20 xl:px-40 pb-10">
+    <div class="flex items-center gap-3 mt-8 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
+      <div class="bg-red-50 dark:bg-red-950/30 p-2.5 rounded-xl text-red-600 dark:text-red-400 flex items-center justify-center shadow-sm">
+        <v-icon icon="mdi-book-cog" size="28"></v-icon>
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 tracking-tight break-words">
+          Gestão de UCs e Áreas
+        </h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Configure as áreas tecnológicas e suas respectivas Unidades Curriculares.
+        </p>
+      </div>
+    </div>
 
-    <v-sheet class="relative top-1 px-1">
-      <v-chip-group
-        selected-class="text-white bg-red-600!"
-        mandatory
-        v-model="selecionado"
-        class="relative top-1!"
-      >
-        <v-chip
+    <!-- Abas Estilizadas Premium (Áreas, Unidades Curriculares) -->
+    <div class="flex items-center mb-6">
+      <div class="bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl flex gap-1 border border-gray-200 dark:border-gray-700">
+        <button
           v-for="tag in tags"
           :key="tag"
-          :value="tag"
-          :text="tag"
-          class="flex justify-center m-0! w-[150px]! p-5 font-bold"
-          rounded="md"
-        ></v-chip>
-      </v-chip-group>
-    </v-sheet>
+          class="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 cursor-pointer select-none"
+          :class="selecionado === tag 
+            ? 'bg-red-600 text-white scale-[1.01]' 
+            : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/30'"
+          @click="selecionado = tag"
+        >
+          <v-icon 
+            :icon="tag === 'Áreas' ? 'mdi-folder-open-outline' : 'mdi-book-open-page-variant-outline'" 
+            size="18"
+            :class="selecionado === tag ? 'text-white' : 'text-gray-400 dark:text-gray-500'"
+          ></v-icon>
+          {{ tag }}
+        </button>
+      </div>
+    </div>
     <v-card class="border-t-4 border-red-600 px-8 rounded-lg shadow-lg py-8">
       <!-- Erro ao carregar dados -->
       <v-fade-transition>
@@ -350,13 +462,33 @@ watch(dialogAddArea, (val) => {
         </v-alert>
       </v-fade-transition>
 
-      <div class="flex flex-col-reverse sm:flex-row justify-between gap-4">
-        <v-text-field
-          label="Pesquisar..."
-          type="text"
-          variant="filled"
-          hide-details
-        ></v-text-field>
+      <div v-if="!(isOpp && selecionado === 'Áreas')" class="flex flex-col-reverse sm:flex-row justify-between gap-4 items-center">
+        <div class="flex flex-col sm:flex-row gap-3 w-full ">
+          <v-text-field
+            v-model="pesquisa"
+            label="Pesquisar áreas ou UCs..."
+            type="text"
+            variant="outlined"
+            density="comfortable"
+            prepend-inner-icon="mdi-magnify"
+            clearable
+            hide-details
+            class="rounded-lg w-full"
+          ></v-text-field>
+          <v-select
+            v-if="selecionado === 'Unidades Curriculares'"
+            v-model="filtroArea"
+            :items="[{ nome: 'Todas as Áreas', idArea: 'Todas' }, ...areasExibidasSelect]"
+            item-title="nome"
+            item-value="nome"
+            label="Filtrar por Área"
+            variant="outlined"
+            density="comfortable"
+            hide-details
+            prepend-inner-icon="mdi-shape-outline"
+            class="rounded-lg w-full sm:max-w-[240px]"
+          ></v-select>
+        </div>
         <v-btn v-if="!(isOpp && selecionado === 'Áreas')" class="h-14 bg-red-500! text-white" @click="selecionado == 'Áreas' ? dialogAddArea = true : dialogAdd = true"
           >Adicionar {{ selecionado == 'Áreas' ? 'Área' : 'UC' }}</v-btn
         >
@@ -364,7 +496,8 @@ watch(dialogAddArea, (val) => {
 
       <!-- ====================== TABELA DE ÁREAS ====================== -->
       <v-table
-        class="mt-8"
+        :class="isOpp && selecionado === 'Áreas' ? 'mt-1' : 'mt-8'"
+        v-slot:default
         v-if="selecionado == 'Áreas'"
         fixed-header
         height="400px"
@@ -377,19 +510,19 @@ watch(dialogAddArea, (val) => {
             <th class="text-center bg-gray-200 dark:bg-[#121212] font-bold">
               Quantidade de UCs
             </th>
-            <th class="text-center bg-gray-200 dark:bg-[#121212] font-bold">
+            <th v-if="!isOpp" class="text-center bg-gray-200 dark:bg-[#121212] font-bold">
               Ações
             </th>
           </tr>
         </thead>
         <tbody>
           <!-- Se não tem áreas, mostra mensagem -->
-          <tr v-if="dadosAreas.length === 0">
-            <td colspan="3" class="text-center text-gray-500 py-8">
+          <tr v-if="areasExibidas.length === 0">
+            <td :colspan="isOpp ? 2 : 3" class="text-center text-gray-500 py-8">
               Nenhuma área cadastrada. Clique em "Adicionar Área" para começar.
             </td>
           </tr>
-          <tr v-for="item in dadosAreas" :key="item.idArea">
+          <tr v-for="item in areasExibidas" :key="item.idArea">
             <td class="text-center font-bold dark:text-white">
               {{ item.nome }}
             </td>
@@ -397,7 +530,7 @@ watch(dialogAddArea, (val) => {
               {{ item.quantidade }}
             </td>
 
-            <td>
+            <td v-if="!isOpp">
               <div class="flex gap-2 justify-center">
                 <v-btn
                   icon="mdi-pencil"
@@ -438,12 +571,12 @@ watch(dialogAddArea, (val) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="dadosCompetencias.length === 0">
+          <tr v-if="competenciasExibidas.length === 0">
             <td colspan="4" class="text-center text-gray-500 py-8">
               Nenhuma UC cadastrada. Clique em "Adicionar UC" para começar.
             </td>
           </tr>
-          <tr v-for="item in dadosCompetencias" :key="item.idUC">
+          <tr v-for="item in competenciasExibidas" :key="item.idUC">
             <td class="text-center font-bold dark:text-white">
               {{ item.nome }}
             </td>
@@ -524,17 +657,15 @@ watch(dialogAddArea, (val) => {
       </v-card-text>
       <v-card-actions class="pa-4 justify-between mb-2">
         <v-btn
-          color="grey"
           variant="elevated"
           @click="dialogAdd = false"
-          class="dark:bg-[#414141] dark:text-white"
           >Cancelar</v-btn
         >
         <v-btn
           color="red"
           variant="elevated"
+          class="bg-red-600! text-white!"
           @click="salvarNovaCompetencia"
-          class="dark:bg-red-600 dark:text-white bg-red-600 text-white"
           >Salvar</v-btn
         >
       </v-card-actions>
@@ -579,17 +710,15 @@ watch(dialogAddArea, (val) => {
 
         <v-card-actions class="mb-3 p-0 px-5 flex justify-between">
           <v-btn
-            color="red"
             variant="elevated"
             @click="dialogEdit = false"
-            class="dark:bg-red-600 dark:text-white text-black"
             >Cancelar</v-btn
           >
           <v-btn
             color="red"
             variant="elevated"
+            class="bg-red-600! text-white! font-bold"
             @click="salvarEditArea"
-            class="dark:bg-red-600 dark:text-white bg-red-600 text-white font-bold"
             >Salvar</v-btn
           >
         </v-card-actions>
@@ -642,17 +771,15 @@ watch(dialogAddArea, (val) => {
 
         <v-card-actions class="p-0 px-5 flex justify-between mt-6">
           <v-btn
-            color="red"
             variant="elevated"
             @click="dialogEditCompetencia = false"
-            class="dark:bg-red-600 dark:text-white text-black"
             >Cancelar</v-btn
           >
           <v-btn
             color="red"
             variant="elevated"
+            class="bg-red-600! text-white! font-bold"
             @click="salvarEditCompetencia"
-            class="dark:bg-red-600 dark:text-white bg-red-600 text-white font-bold"
             >Salvar</v-btn
           >
         </v-card-actions>
@@ -670,8 +797,8 @@ watch(dialogAddArea, (val) => {
         Tem certeza de que deseja excluir a área <b>{{ areaDeletando?.nome }}</b>? Esta ação não pode ser desfeita.
       </v-card-text>
       <v-card-actions class="pa-6 pt-0 flex justify-end gap-3">
-        <v-btn color="grey-darken-1" variant="text" class="font-bold px-6 uppercase tracking-wide" @click="dialogDelete = false">Cancelar</v-btn>
-        <v-btn variant="elevated" color="white" class="text-gray-800 font-bold px-8 shadow-sm border uppercase tracking-wide" @click="confirmarDeleteArea">Excluir</v-btn>
+        <v-btn variant="elevated" color="grey-lighten-2" class="font-bold px-6 uppercase tracking-wide text-gray-800" @click="dialogDelete = false">Cancelar</v-btn>
+        <v-btn variant="elevated" color="red" class="bg-red-600 text-white font-bold px-8 shadow-sm uppercase tracking-wide" @click="confirmarDeleteArea">Excluir</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -693,8 +820,8 @@ watch(dialogAddArea, (val) => {
         ></v-text-field>
       </v-card-text>
       <v-card-actions class="px-5 justify-between mb-2">
-        <v-btn color="grey" variant="elevated" @click="dialogAddArea = false">Cancelar</v-btn>
-        <v-btn color="red" variant="elevated" @click="salvarNovaArea" class="bg-red-600 text-white">Salvar</v-btn>
+        <v-btn variant="elevated" @click="dialogAddArea = false">Cancelar</v-btn>
+        <v-btn color="red" variant="elevated" class="bg-red-600! text-white!" @click="salvarNovaArea">Salvar</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -709,9 +836,43 @@ watch(dialogAddArea, (val) => {
         Tem certeza de que deseja excluir a unidade curricular <b>{{ competenciaDeletando?.nome }}</b>? Esta ação não pode ser desfeita.
       </v-card-text>
       <v-card-actions class="pa-6 pt-0 flex justify-end gap-3">
-        <v-btn color="grey-darken-1" variant="text" class="font-bold px-6 uppercase tracking-wide" @click="dialogDeleteCompetencia = false">Cancelar</v-btn>
-        <v-btn variant="elevated" color="white" class="text-gray-800 font-bold px-8 shadow-sm border uppercase tracking-wide" @click="confirmarDeleteCompetencia">Excluir</v-btn>
+        <v-btn variant="elevated" color="grey-lighten-2" class="font-bold px-6 uppercase tracking-wide text-gray-800" @click="dialogDeleteCompetencia = false">Cancelar</v-btn>
+        <v-btn variant="elevated" color="red" class="bg-red-600 text-white font-bold px-8 shadow-sm uppercase tracking-wide" @click="confirmarDeleteCompetencia">Excluir</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <!-- Snackbar de Alertas Premium -->
+  <v-snackbar 
+    v-model="snackbar.show" 
+    :color="snackbar.color" 
+    :timeout="snackbar.timeout" 
+    location="top right" 
+    class="mt-4 mr-4"
+    elevation="24"
+    rounded="xl"
+  >
+    <div class="flex items-start gap-4 p-1">
+      <v-avatar :color="snackbar.color" size="40" class="elevation-3 flex-shrink-0">
+        <v-icon :icon="snackbar.icon" color="white" size="24"></v-icon>
+      </v-avatar>
+      <div class="flex-grow text-white">
+        <p class="text-xs font-black uppercase tracking-widest opacity-70 mb-0.5">Notificação</p>
+        <p class="text-[13px] font-bold leading-tight">{{ snackbar.text }}</p>
+      </div>
+      <v-btn icon="mdi-close" variant="text" color="white" @click="snackbar.show = false" size="small" class="opacity-50 hover:opacity-100 transition-opacity"></v-btn>
+    </div>
+    
+    <template v-slot:text>
+      <v-progress-linear
+        indeterminate
+        absolute
+        bottom
+        height="3"
+        color="white"
+        class="rounded-b-xl opacity-30"
+      ></v-progress-linear>
+    </template>
+  </v-snackbar>
+  </div>
 </template>

@@ -1,7 +1,8 @@
 <template>
-  <v-footer class="bg-red-600 text-white mt-6 py-4">
-    <v-container class="py-0">
-      <v-row dense>
+  <footer class="bg-red-600 text-white mt-6 py-6 w-full flex-shrink-0">
+    <div class="max-w-[1600px] w-full mx-auto px-6">
+      <v-row dense class="align-center">
+        <!-- Coluna 1: Branding (Esquerda) -->
         <v-col cols="12" md="4" class="text-center text-md-left">
           <div
             class="text-3xl font-black italic tracking-tighter mb-2 inline-block"
@@ -9,31 +10,31 @@
           >
             SENAI
           </div>
-          <p class="text-xs opacity-90 max-w-xs mx-auto mx-md-0">
+          <p class="text-xs opacity-90 max-w-xs mx-auto mx-md-0 leading-relaxed">
             Pelo futuro do trabalho. O Serviço Nacional de Aprendizagem Industrial (SENAI) é um dos cinco maiores complexos de educação profissional do mundo.
           </p>
         </v-col>
 
-        <v-col cols="12" md="4" class="text-center" v-if="showLinks">
-          <h3 class="text-lg font-bold mb-3">Links Rápidos</h3>
-          <div class="flex flex-col gap-1">
-            <router-link to="/turmas" class="text-white hover:text-gray-200 transition-colors text-sm">Gestão de Turmas</router-link>
-            <router-link to="/findprofessor" class="text-white hover:text-gray-200 transition-colors text-sm">Gestão de Professores</router-link>
-            <router-link to="/" class="text-white hover:text-gray-200 transition-colors text-sm">Dashboard</router-link>
-          </div>
-        </v-col>
-        <v-spacer v-else></v-spacer>
-
-        <v-col cols="12" md="4" class="text-center text-md-right">
-          <h3 class="text-lg font-bold mb-3">Siga-nos</h3>
-          <div class="flex justify-center justify-md-end gap-2 mb-3">
+        <!-- Coluna 2: Redes Sociais (Centro) -->
+        <v-col cols="12" md="4" class="text-center mt-4 mt-md-0">
+          <h3 class="text-sm font-bold uppercase tracking-wider mb-2">Siga-nos</h3>
+          <div class="flex justify-center gap-2">
             <v-btn icon="mdi-facebook" variant="text" color="white" density="comfortable"></v-btn>
             <v-btn icon="mdi-instagram" variant="text" color="white" density="comfortable"></v-btn>
             <v-btn icon="mdi-linkedin" variant="text" color="white" density="comfortable"></v-btn>
           </div>
-          <p class="text-xs font-bold mt-2">
-            <v-icon icon="mdi-phone" start size="x-small"></v-icon>
-            0800 000 0000
+        </v-col>
+
+        <!-- Coluna 3: Suporte Técnico (Direita) -->
+        <v-col cols="12" md="4" class="text-center text-md-right mt-4 mt-md-0">
+          <h3 class="text-sm font-bold uppercase tracking-wider mb-2">Suporte Técnico</h3>
+          <p class="text-xs font-bold mt-2 flex items-center justify-center justify-md-end gap-1">
+            <v-icon icon="mdi-email-outline" size="x-small"></v-icon>
+            suporte.interno@sp.senai.br
+          </p>
+          <p class="text-xs opacity-90 mt-1 flex items-center justify-center justify-md-end gap-1">
+            <v-icon icon="mdi-phone-outline" size="x-small"></v-icon>
+            Suporte TI - Ramal: 4500
           </p>
         </v-col>
       </v-row>
@@ -47,19 +48,63 @@
           <a href="#" class="text-white">Termos de Uso</a>
         </div>
       </div>
-    </v-container>
-  </v-footer>
+    </div>
+  </footer>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { getUsuarioLogado } from '@/services/api';
 
 const route = useRoute();
+
+const usuario = ref(getUsuarioLogado());
+const funcao = computed(() => usuario.value?.funcao || "");
+
+const atualizarUsuario = () => {
+  usuario.value = getUsuarioLogado();
+};
+
+onMounted(() => {
+  window.addEventListener('usuario-atualizado', atualizarUsuario);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('usuario-atualizado', atualizarUsuario);
+});
 
 const showLinks = computed(() => {
   const loginRoutes = ['telainput', 'login', 'cadastro'];
   return !loginRoutes.includes(route.name as string);
+});
+
+const dynamicLinks = computed(() => {
+  switch (funcao.value) {
+    case 'gestor':
+      return [
+        { label: 'Gestão de Turmas', to: '/turmas' },
+        { label: 'Gestão de Professores', to: '/findprofessor' },
+        { label: 'Gestão de Cadastros', to: '/gerenciarcadastros' },
+        { label: 'Início', to: '/turmas' }
+      ];
+    case 'opp':
+      return [
+        { label: 'Gestão de Turmas', to: '/turmas' },
+        { label: 'Gestão de Professores', to: '/findprofessor' },
+        { label: 'Gestão de UCs e Áreas', to: '/GerAreasComp' },
+        { label: 'Início', to: '/turmas' }
+      ];
+    case 'professor':
+      return [
+        { label: 'Calendário', to: '/calendarioprof' },
+        { label: 'Gestão de UCs', to: '/perfilprofessor' },
+        { label: 'Gestão de Disponibilidade', to: '/disponibilidadeprof' },
+        { label: 'Início', to: '/calendarioprof' }
+      ];
+    default:
+      return [];
+  }
 });
 </script>
 

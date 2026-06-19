@@ -10,6 +10,7 @@ import { ProfessorTurma } from './professor-turma.entity.js';
 import { Disponibilidade } from '../disponibilidade/disponibilidade.entity.js';
 import { Professor } from '../professor/professor.entity.js';
 import { TurmaUC } from './turma-uc.entity.js';
+import { WebSocketManager } from '../../shared/websocket.manager.js';
 
 // Prioridade de ordenação dos períodos (Manhã → Tarde → Noite)
 const PERIODO_ORDEM: Record<string, number> = {
@@ -62,6 +63,7 @@ interface CriarTurmaInput {
   idArea?: number;
   aulasSemana?: number;
   totalAulas?: number;
+  descricao?: string;
   horarios: HorarioInput[];
 }
 
@@ -72,11 +74,16 @@ export class TurmaService {
     let turmas: Turma[];
 
     if (usuario.funcao === 'opp') {
-      const idOPP = await this.resolverIdOPP(usuario.idUsuario);
-      if (!idOPP) {
+      const oppRepo = AppDataSource.getRepository(OPP);
+      const opp = await oppRepo.findOne({
+        where: { idCadastro: usuario.idUsuario, status: true },
+        relations: ['oppAreas'],
+      });
+      if (!opp) {
         throw new Error('OPP não encontrado para este cadastro');
       }
-      turmas = await this.repo.findByOPP(idOPP);
+      const idsAreas = opp.oppAreas?.map(oa => oa.idArea) || [];
+      turmas = await this.repo.findByOPPAreas(opp.idOPP, idsAreas);
     } else {
       turmas = await this.repo.findAll();
     }
@@ -121,18 +128,21 @@ export class TurmaService {
     const turma = await this.repo.create({
       idCriador: usuario.idUsuario,
       idOPP,
+      idArea: dados.idArea || null,
       nome: dados.nome.trim(),
       tipoCurso: dados.tipoCurso.toUpperCase(),
       dataInicio: new Date(dados.dataInicio),
       dataTermino: new Date(dados.dataTermino),
       aulasSemana: dados.aulasSemana ?? this.contarDiasUnicos(horariosResolvidos),
       totalAulas: dados.totalAulas ?? horariosResolvidos.length,
+      descricao: dados.descricao?.trim() || null,
       status: true,
     });
 
     await this.repo.saveHorarios(turma.idTurma, horariosResolvidos);
 
     const salva = await this.repo.findById(turma.idTurma);
+    WebSocketManager.broadcast({ type: 'DATA_UPDATED', entity: 'turmas' });
     return this.mapTurmaParaCard(salva!);
   }
 
@@ -142,11 +152,13 @@ export class TurmaService {
 
     await this.verificarPermissao(usuario, turma);
 
-    // Regra 1: Validar que o OPP pertence à Área selecionada
-    const idOPPFinal = dados.idOPP ?? turma.idOPP;
-    const idAreaFinal = dados.idArea ?? turma.turmaUCs?.[0]?.unidadeCurricular?.idArea;
-    if (idAreaFinal && idOPPFinal) {
-      await this.validarOPPPertenceArea(idOPPFinal, idAreaFinal);
+    // Regra 1: Validar que o OPP pertence à Área selecionada (apenas se estiverem sendo alterados)
+    if (dados.idOPP !== undefined || dados.idArea !== undefined) {
+      const idOPPFinal = dados.idOPP ?? turma.idOPP;
+      const idAreaFinal = dados.idArea ?? (turma.turmaUCs?.[0]?.unidadeCurricular?.idArea || null);
+      if (idAreaFinal && idOPPFinal) {
+        await this.validarOPPPertenceArea(idOPPFinal, idAreaFinal);
+      }
     }
 
     const updateData: Partial<Turma> = {};
@@ -155,6 +167,8 @@ export class TurmaService {
     if (dados.dataInicio) updateData.dataInicio = new Date(dados.dataInicio);
     if (dados.dataTermino) updateData.dataTermino = new Date(dados.dataTermino);
     if (dados.idOPP && usuario.funcao === 'gestor') updateData.idOPP = dados.idOPP;
+    if (dados.idArea !== undefined) updateData.idArea = dados.idArea;
+    if (dados.descricao !== undefined) updateData.descricao = dados.descricao?.trim() || null;
 
     // Se mudou data ou horários, recalculamos aulasSemana e totalAulas
     const dataInicioFinal = dados.dataInicio ? new Date(dados.dataInicio) : turma.dataInicio;
@@ -185,9 +199,11 @@ export class TurmaService {
     updateData.aulasSemana = this.contarDiasUnicos(horariosFinais);
     updateData.totalAulas = this.calcularTotalAulas(dataInicioFinal, dataTerminoFinal, horariosFinais);
 
-    await this.repo.update(idTurma, updateData);
-
-    const atualizada = await this.repo.findById(idTurma);
+    const atualizada = await this.repo.update(idTurma, updateData);
+    if (atualizada) {
+      WebSocketManager.broadcast({ type: 'DATA_UPDATED', entity: 'turmas' });
+      WebSocketManager.broadcast({ type: 'DATA_UPDATED', entity: 'professores' });
+    }
     return atualizada ? this.mapTurmaParaCard(atualizada) : null;
   }
 
@@ -197,6 +213,8 @@ export class TurmaService {
 
     await this.verificarPermissao(usuario, turma);
     await this.repo.softDelete(idTurma);
+    WebSocketManager.broadcast({ type: 'DATA_UPDATED', entity: 'turmas' });
+    WebSocketManager.broadcast({ type: 'DATA_UPDATED', entity: 'professores' });
     return true;
   }
 
@@ -263,18 +281,27 @@ export class TurmaService {
   private contarDiasUnicos(
     horarios: { diaSemana: string }[],
   ): number {
-    return new Set(horarios.map((h) => h.diaSemana)).size;
+    return new Set(
+      horarios
+        ?.map((h) => h?.diaSemana?.toLowerCase())
+        .filter(Boolean) || []
+    ).size;
   }
 
   private mapTurmaParaCard(turma: Turma) {
     const grade = this.buildGrade(turma);
-    const areas = [
-      ...new Set(
-        turma.turmaUCs
-          ?.map((tuc) => tuc.unidadeCurricular?.area?.nome)
-          .filter(Boolean) as string[],
-      ),
-    ];
+    
+    // Se a turma tem a área definida diretamente, use apenas essa área.
+    // Caso contrário, (legado) pegue das UCs.
+    const areas = turma.area 
+      ? [turma.area.nome]
+      : [
+          ...new Set(
+            turma.turmaUCs
+              ?.map((tuc) => tuc.unidadeCurricular?.area?.nome)
+              .filter(Boolean) as string[],
+          ),
+        ];
 
     // Deduplica professores vinculados (um professor pode estar em vários slots)
     const profsMap = new Map<number, { idProfessor: number; nome: string; foto: string }>();
@@ -284,9 +311,7 @@ export class TurmaService {
         profsMap.set(pt.idProfessor, {
           idProfessor: pt.idProfessor,
           nome: pt.professor?.cadastro?.nome || 'Sem nome',
-          foto:
-            pt.professor?.cadastro?.fotoPerfil ||
-            'https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80',
+          foto: pt.professor?.cadastro?.fotoPerfil || '',
         });
       }
     }
@@ -302,7 +327,7 @@ export class TurmaService {
     }
 
     const siglas = grade[0]?.periodo || 'N/D';
-    const idArea = turma.turmaUCs?.[0]?.unidadeCurricular?.idArea || null;
+    const idArea = turma.idArea || turma.turmaUCs?.[0]?.unidadeCurricular?.idArea || null;
 
     return {
       idTurma: turma.idTurma,
@@ -324,6 +349,7 @@ export class TurmaService {
       oppNome: turma.opp?.cadastro?.nome || '',
       idOPP: turma.idOPP,
       professores,
+      descricao: turma.descricao || '',
     };
   }
 
@@ -419,7 +445,7 @@ export class TurmaService {
   }
 
   private calcularTotalAulas(dataInicio: Date, dataTermino: Date, horarios: { diaSemana: string }[]): number {
-    if (!dataInicio || !dataTermino || !horarios.length) return 0;
+    if (!dataInicio || !dataTermino || !horarios?.length) return 0;
     if (dataInicio > dataTermino) return 0;
 
     const mapaDiasJs: Record<string, number> = {
@@ -433,7 +459,9 @@ export class TurmaService {
 
     const diasSelecionadosJs = [
       ...new Set(
-        horarios.map(h => mapaDiasJs[h.diaSemana.toLowerCase()]).filter(d => d !== undefined)
+        horarios
+          .map(h => h?.diaSemana ? mapaDiasJs[h.diaSemana.toLowerCase()] : undefined)
+          .filter(d => d !== undefined)
       )
     ];
 
@@ -519,6 +547,7 @@ export class TurmaService {
       idProfessor: number;
       nome: string;
       email: string;
+      fotoPerfil: string;
       ocupacao: number;
       nivelCompetencia: number;
       areas: { idArea: number; nome: string }[];
@@ -531,14 +560,14 @@ export class TurmaService {
 
     for (const puc of profsComUC) {
       const prof = puc.professor;
-      if (!prof || !prof.status) continue; // Regra 5: professor ativo
+      if (!prof || !prof.status || !prof.cadastro || prof.cadastro.funcao !== 'professor' || !prof.cadastro.status) continue; // Regra 5: professor ativo
 
       // 2. Verificar disponibilidade
       const disponibilidades = await dispRepo.find({
         where: { idProfessor: prof.idProfessor, diaSemana: diaNorm },
       });
 
-      const temDisponibilidade = disponibilidades.some(d => 
+      const temDisponibilidade = disponibilidades.some(d =>
         periodosDisponiveis.includes(d.periodo.toLowerCase())
       );
       if (!temDisponibilidade) continue;
@@ -565,36 +594,46 @@ export class TurmaService {
       let temConflito = false;
       for (const pt of turmasDoProf) {
         if (!pt.turma?.status) continue;
-        if (pt.turmaUC && pt.turmaUC.diaSemana.toLowerCase() === diaNorm && pt.turmaUC.periodo === periodo) {
+        if (
+          pt.turmaUC &&
+          pt.turmaUC.diaSemana.toLowerCase() === diaNorm &&
+          this.periodosSeOverlap(pt.turmaUC.periodo, periodo) &&
+          this.datasSeOverlap(
+            turma.dataInicio, turma.dataTermino,
+            pt.turma.dataInicio, pt.turma.dataTermino
+          )
+        ) {
           temConflito = true;
           break;
         }
       }
       if (temConflito) continue;
 
-      // 3. Calcular ocupação e verificar < 80%
+      // 3. Calcular ocupação (em horas) e verificar < 80%
       const profCompleto = await professorRepo.findOne({
         where: { idProfessor: prof.idProfessor },
         relations: [
           'disponibilidades',
           'professorTurmas',
           'professorTurmas.turma',
+          'professorTurmas.turmaUC',
         ],
       });
 
       if (!profCompleto) continue;
 
-      const totalDisponivel = profCompleto.disponibilidades?.length || 0;
-      let periodosAlocados = 0;
+      const totalHorasDisponiveis = (profCompleto.disponibilidades?.length || 0) * 4;
+      let horasAlocadas = 0;
       if (profCompleto.professorTurmas) {
         for (const pt of profCompleto.professorTurmas) {
           if (pt.status && pt.turma?.status) {
-            periodosAlocados += 1;
+            const p = pt.turmaUC?.periodo || 'M01';
+            horasAlocadas += this.obterHorasDoPeriodo(p);
           }
         }
       }
-      const ocupacao = totalDisponivel > 0
-        ? Math.min(Math.round((periodosAlocados / totalDisponivel) * 100), 100)
+      const ocupacao = totalHorasDisponiveis > 0
+        ? Math.min(Math.round((horasAlocadas / totalHorasDisponiveis) * 100), 100)
         : 0;
 
       if (ocupacao >= 80) continue; // Regra 3
@@ -603,6 +642,7 @@ export class TurmaService {
         idProfessor: prof.idProfessor,
         nome: prof.cadastro?.nome || 'Sem nome',
         email: prof.cadastro?.email || '',
+        fotoPerfil: prof.cadastro?.fotoPerfil || '',
         ocupacao,
         nivelCompetencia: Number(puc.nivelCompetencia),
         areas: prof.professorAreas?.map(pa => ({
@@ -642,7 +682,9 @@ export class TurmaService {
       where: { idProfessor, status: true },
       relations: ['cadastro'],
     });
-    if (!professor) throw new Error('Professor não encontrado ou inativo');
+    if (!professor || !professor.cadastro || professor.cadastro.funcao !== 'professor' || !professor.cadastro.status) {
+      throw new Error('Professor não encontrado ou inativo');
+    }
 
     // Encontrar o TurmaUC correspondente ao slot
     const turmaUCRepo = AppDataSource.getRepository(TurmaUC);
@@ -652,6 +694,31 @@ export class TurmaService {
     if (!slotTurmaUC) throw new Error('Slot não encontrado na grade da turma');
 
     const profTurmaRepo = AppDataSource.getRepository(ProfessorTurma);
+
+    // Verificar conflito de horário antes de alocar (revalidação)
+    const turmasDoProf = await profTurmaRepo.find({
+      where: { idProfessor, status: true },
+      relations: ['turmaUC', 'turma'],
+    });
+
+    for (const pt of turmasDoProf) {
+      if (!pt.turma?.status) continue;
+      if (
+        pt.turmaUC &&
+        pt.turmaUC.diaSemana.toLowerCase() === diaSemana.toLowerCase() &&
+        this.periodosSeOverlap(pt.turmaUC.periodo, periodo) &&
+        this.datasSeOverlap(
+          turma.dataInicio, turma.dataTermino,
+          pt.turma.dataInicio, pt.turma.dataTermino
+        )
+      ) {
+        throw new Error(
+          `Conflito de horário: professor já está alocado em "${pt.turma.nome || 'outra turma'}" ` +
+          `no mesmo dia (${diaSemana}) com período sobreposto (${pt.turmaUC.periodo})`
+        );
+      }
+    }
+
 
     // Verificar se já existe alguém neste slot
     const existeNoSlot = await profTurmaRepo.findOne({
@@ -676,6 +743,10 @@ export class TurmaService {
     await profTurmaRepo.save(novo);
 
     const atualizada = await this.repo.findById(idTurma);
+    if (atualizada) {
+      WebSocketManager.broadcast({ type: 'DATA_UPDATED', entity: 'turmas' });
+      WebSocketManager.broadcast({ type: 'DATA_UPDATED', entity: 'professores' });
+    }
     return atualizada ? this.mapTurmaParaCard(atualizada) : null;
   }
 
@@ -724,6 +795,10 @@ export class TurmaService {
     }
 
     const atualizada = await this.repo.findById(idTurma);
+    if (atualizada) {
+      WebSocketManager.broadcast({ type: 'DATA_UPDATED', entity: 'turmas' });
+      WebSocketManager.broadcast({ type: 'DATA_UPDATED', entity: 'professores' });
+    }
     return atualizada ? this.mapTurmaParaCard(atualizada) : null;
   }
 
@@ -738,5 +813,82 @@ export class TurmaService {
     if (p.startsWith('N') || p === 'NOITE') return ['noite'];
     if (p === 'INT' || p === 'INTEGRAL' || p.startsWith('INT_')) return ['manha', 'tarde'];
     return [periodo.toLowerCase()];
+  }
+
+  private obterHorasDoPeriodo(periodo: string): number {
+    const p = periodo.toUpperCase();
+    if (['M01', 'M02', 'T01', 'T02', 'N01', 'N02'].includes(p)) {
+      return 2;
+    }
+    if (p === 'INT' || p === 'INTEGRAL' || p.startsWith('INT_') || p.includes('MANHÃ + TARDE') || p.includes('MANHA + TARDE') || p.includes('MANHÃ + NOITE') || p.includes('MANHA + NOITE') || p.includes('TARDE + NOITE')) {
+      return 8;
+    }
+    if (p === 'MANHÃ' || p === 'MANHA' || p === 'TARDE' || p === 'NOITE') {
+      return 4;
+    }
+    return 2;
+  }
+
+  // ============================================================
+  // VERIFICAÇÃO DE CONFLITOS — Sobreposição de períodos e datas
+  // ============================================================
+
+  /**
+   * Decompõe um período em sub-períodos atômicos.
+   * Exemplos:
+   *   'Manhã'       → ['M01', 'M02']
+   *   'Tarde'       → ['T01', 'T02']
+   *   'Noite'       → ['N01', 'N02']
+   *   'INT_MT'      → ['M01', 'M02', 'T01', 'T02']
+   *   'M01'         → ['M01']
+   */
+  private decomporPeriodo(periodo: string): string[] {
+    const p = periodo.toUpperCase().replace(/\s/g, '');
+
+    const MANHA = ['M01', 'M02'];
+    const TARDE = ['T01', 'T02'];
+    const NOITE = ['N01', 'N02'];
+
+    // Sub-períodos atômicos
+    if (['M01', 'M02', 'T01', 'T02', 'N01', 'N02'].includes(p)) return [p];
+
+    // Períodos completos
+    if (p === 'MANHÃ' || p === 'MANHA') return MANHA;
+    if (p === 'TARDE') return TARDE;
+    if (p === 'NOITE') return NOITE;
+
+    // Integrais
+    if (p === 'INT_MT' || p === 'INT' || p === 'INTEGRAL' || p === 'MANHÃ+TARDE' || p === 'MANHA+TARDE') return [...MANHA, ...TARDE];
+    if (p === 'INT_TN' || p === 'TARDE+NOITE') return [...TARDE, ...NOITE];
+    if (p === 'INT_MN' || p === 'MANHÃ+NOITE' || p === 'MANHA+NOITE') return [...MANHA, ...NOITE];
+
+    // Fallback
+    return [p];
+  }
+
+  /**
+   * Verifica se dois períodos têm sobreposição de horário.
+   * Ex: 'Tarde' e 'INT_MT' → true (ambos contêm T01/T02)
+   *     'Manhã' e 'Tarde' → false (sem interseção)
+   */
+  private periodosSeOverlap(periodoA: string, periodoB: string): boolean {
+    const subA = this.decomporPeriodo(periodoA);
+    const subB = this.decomporPeriodo(periodoB);
+    return subA.some(s => subB.includes(s));
+  }
+
+  /**
+   * Verifica se dois intervalos de datas se sobrepõem.
+   * Turmas com datas que não se cruzam não geram conflito.
+   */
+  private datasSeOverlap(
+    inicioA: Date, terminoA: Date,
+    inicioB: Date, terminoB: Date
+  ): boolean {
+    const a0 = new Date(inicioA).getTime();
+    const a1 = new Date(terminoA).getTime();
+    const b0 = new Date(inicioB).getTime();
+    const b1 = new Date(terminoB).getTime();
+    return a0 <= b1 && b0 <= a1;
   }
 }

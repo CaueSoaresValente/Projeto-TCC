@@ -1,9 +1,9 @@
 <script setup>
-import Menu from "@/components/Menu.vue";
-import { ref, watch, computed, onMounted } from "vue";
+import { ref, watch, computed, onMounted, onBeforeUnmount } from "vue";
 import {
   getUsuarioLogado,
   buscarProfessorPorCadastro,
+  criarProfessor,
   listarAreas,
   listarAreasProfessor, adicionarAreaProfessor, editarAreaProfessor, excluirAreaProfessor,
   listarUCsProfessor, listarUCsPorArea, adicionarUCProfessor, editarUCProfessor, excluirUCProfessor,
@@ -12,19 +12,6 @@ import {
 
 // ID do professor (vem do banco após o login)
 const idProfessor = ref(null);
-
-// Dados do usuário logado
-const user = ref({
-  name: "User",
-  foto: "https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80",
-});
-
-// Itens do menu dropdown do avatar
-// Itens do menu dropdown do avatar (Padronizado)
-const items = ref([
-  { title: "Meu Perfil", icon: "mdi-account-outline" },
-  { title: "Sair", icon: "mdi-logout" },
-]);
 
 // Abas
 const tags = ["Área de Atuação", "Unidades Curriculares", "Certificações"];
@@ -184,12 +171,19 @@ const salvarUnidade = async () => {
 };
 
 const salvarCertificacao = async () => {
+  if (!novaCertificacaoNome.value.trim() || 
+      !novaCertificacaoInstituicao.value.trim() || 
+      !novaCertificacaoCarga.value.trim() || 
+      !novaCertificacaoData.value) {
+    mostrarNotificacao("Por favor, preencha todos os campos da certificação!", "error");
+    return;
+  }
   try {
     await adicionarCertificacao(idProfessor.value, {
       nome: novaCertificacaoNome.value.trim(),
-      instituicao: novaCertificacaoInstituicao.value.trim() || undefined,
-      cargaHoraria: novaCertificacaoCarga.value.trim() || undefined,
-      dataObtencao: novaCertificacaoData.value || undefined,
+      instituicao: novaCertificacaoInstituicao.value.trim(),
+      cargaHoraria: novaCertificacaoCarga.value.trim(),
+      dataObtencao: novaCertificacaoData.value,
     });
     await carregarCertificacoes();
     mostrarNotificacao("Certificação adicionada com sucesso!");
@@ -243,12 +237,20 @@ const abrirEditCertificacao = (item) => {
 
 const salvarEdicaoCertificacao = async () => {
   if (!certificacaoSelecionada.value) return;
+  const { nome, instituicao, cargaHoraria, dataObtencao } = certificacaoSelecionada.value;
+  if (!nome?.trim() || 
+      !instituicao?.trim() || 
+      !String(cargaHoraria || '').trim() || 
+      !dataObtencao) {
+    mostrarNotificacao("Por favor, preencha todos os campos da certificação!", "error");
+    return;
+  }
   try {
     await editarCertificacao(certificacaoSelecionada.value.idCertificacao, {
-      nome: certificacaoSelecionada.value.nome,
-      instituicao: certificacaoSelecionada.value.instituicao,
-      cargaHoraria: certificacaoSelecionada.value.cargaHoraria,
-      dataObtencao: certificacaoSelecionada.value.dataObtencao,
+      nome: nome.trim(),
+      instituicao: instituicao.trim(),
+      cargaHoraria: String(cargaHoraria).trim(),
+      dataObtencao: dataObtencao,
     });
     await carregarCertificacoes();
     mostrarNotificacao("Certificação atualizada com sucesso!");
@@ -354,11 +356,13 @@ watch(dialogAddCertificacao, (val) => {
 // =============================================
 // INICIALIZAÇÃO — Carrega tudo ao montar a página
 // =============================================
+let wsListener;
+
 onMounted(async () => {
   try {
     const usuario = getUsuarioLogado();
     if (usuario) {
-      user.value.name = usuario.nome || "User";
+      // CORREÇÃO: Removido 'user.value.name' que causava ReferenceError e quebrava a inicialização do onMounted.
       
       let professor;
       try {
@@ -368,14 +372,10 @@ onMounted(async () => {
       }
       
       if (!professor) {
-        const response = await fetch('http://localhost:3001/api/professor', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idCadastro: usuario.idUsuario })
-        });
-        
-        if (response.ok) {
-          professor = await response.json();
+        try {
+          professor = await criarProfessor(usuario.idUsuario);
+        } catch (e) {
+          console.error("Erro ao criar perfil de professor:", e);
         }
       }
 
@@ -390,37 +390,72 @@ onMounted(async () => {
   } catch (e) { 
     console.error('Erro ao inicializar:', e);
   }
+
+  wsListener = (event) => {
+    const detail = event.detail;
+    if (detail.entity === 'areas') {
+      carregarAreasDisponiveis();
+      carregarAreas();
+    } else if (detail.entity === 'competencias') {
+      carregarUnidades();
+      if (areaSelecionadaFiltro.value) {
+        listarUCsPorArea(areaSelecionadaFiltro.value).then(res => {
+          unidadesFiltradas.value = res;
+        }).catch(console.error);
+      }
+    } else if (detail.entity === 'professores') {
+      carregarAreas();
+      carregarUnidades();
+      carregarCertificacoes();
+    }
+  };
+  window.addEventListener('websocket-data-updated', wsListener);
+});
+
+onBeforeUnmount(() => {
+  if (wsListener) {
+    window.removeEventListener('websocket-data-updated', wsListener);
+  }
 });
 </script>
 
 <template>
-  <!-- Menu do topo -->
-  <div id="main-menu-wrapper">
-    <Menu />
-  </div>
-
+  <div>
   <!-- Conteúdo principal -->
-  <div class="mx-5 md:mx-20! lg:mx-50!">
-    <h1 class="text-3xl font-bold my-4 break-words">Meu Perfil</h1>
+  <div class="px-4 md:px-10 lg:px-20 xl:px-40">
+    <div class="flex items-center gap-3 mt-8 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
+      <div class="bg-red-50 dark:bg-red-950/30 p-2.5 rounded-xl text-red-600 dark:text-red-400 flex items-center justify-center shadow-sm">
+        <v-icon icon="mdi-certificate" size="28"></v-icon>
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 tracking-tight break-words">Meu Perfil</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Gerencie suas UCs, áreas tecnológicas de atuação e certificações profissionais.
+        </p>
+      </div>
+    </div>
 
-    <!-- Abas -->
-    <v-sheet class="relative top-1 px-1">
-      <v-chip-group
-        selected-class="text-white bg-red-600!"
-        mandatory
-        v-model="selecionado"
-        class="relative top-1!"
-      >
-        <v-chip
+    <!-- Abas Estilizadas Premium (Área de Atuação, Unidades Curriculares, Certificações) -->
+    <div class="flex items-center mb-6">
+      <div class="bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl flex flex-wrap gap-1 border border-gray-200 dark:border-gray-700">
+        <button
           v-for="tag in tags"
           :key="tag"
-          :value="tag"
-          :text="tag"
-          class="flex justify-center m-0! w-[200px]! p-5 font-bold"
-          rounded="md"
-        ></v-chip>
-      </v-chip-group>
-    </v-sheet>
+          class="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 cursor-pointer select-none"
+          :class="selecionado === tag 
+            ? 'bg-red-600 text-white scale-[1.01]' 
+            : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/30'"
+          @click="selecionado = tag"
+        >
+          <v-icon 
+            :icon="tag === 'Área de Atuação' ? 'mdi-tag-outline' : tag === 'Unidades Curriculares' ? 'mdi-school-outline' : 'mdi-certificate-outline'" 
+            size="18"
+            :class="selecionado === tag ? 'text-white' : 'text-gray-400 dark:text-gray-500'"
+          ></v-icon>
+          {{ tag }}
+        </button>
+      </div>
+    </div>
 
     <!-- Card principal -->
     <v-card class="border-t-4 border-red-600 px-8 rounded-lg shadow-lg py-8">
@@ -678,10 +713,9 @@ onMounted(async () => {
         Tem certeza de que deseja excluir a área
         <strong>{{ areaSelecionada?.area?.nome }}</strong>? Esta ação não pode ser desfeita.
       </v-card-text>
-      <v-card-actions class="pa-4">
-        <v-spacer></v-spacer>
-        <v-btn color="grey" variant="text" @click="dialogDeleteArea = false">Cancelar</v-btn>
-        <v-btn color="red" variant="elevated" @click="confirmarDeleteArea">Excluir</v-btn>
+      <v-card-actions class="pa-4 flex justify-end gap-3">
+        <v-btn variant="elevated" color="grey-lighten-2" class="font-bold text-gray-800" @click="dialogDeleteArea = false">Cancelar</v-btn>
+        <v-btn variant="elevated" color="red" class="bg-red-600 text-white font-bold" @click="confirmarDeleteArea">Excluir</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -823,10 +857,9 @@ onMounted(async () => {
         Tem certeza de que deseja excluir
         <strong>{{ unidadeSelecionada?.unidadeCurricular?.nome }}</strong>? Esta ação não pode ser desfeita.
       </v-card-text>
-      <v-card-actions class="pa-4">
-        <v-spacer></v-spacer>
-        <v-btn color="grey" variant="text" @click="dialogDeleteUnidade = false">Cancelar</v-btn>
-        <v-btn color="red" variant="elevated" @click="confirmarDeleteUnidade">Excluir</v-btn>
+      <v-card-actions class="pa-4 flex justify-end gap-3">
+        <v-btn variant="elevated" color="grey-lighten-2" class="font-bold text-gray-800" @click="dialogDeleteUnidade = false">Cancelar</v-btn>
+        <v-btn variant="elevated" color="red" class="bg-red-600 text-white font-bold" @click="confirmarDeleteUnidade">Excluir</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -961,10 +994,9 @@ onMounted(async () => {
         Deseja excluir a certificação
         <strong>{{ certificacaoSelecionada?.nome }}</strong>?
       </v-card-text>
-      <v-card-actions class="pa-4">
-        <v-spacer></v-spacer>
-        <v-btn color="grey" variant="text" @click="dialogDeleteCertificacao = false">Cancelar</v-btn>
-        <v-btn color="red" variant="elevated" @click="confirmarDeleteCertificacao">Excluir</v-btn>
+      <v-card-actions class="pa-4 flex justify-end gap-3">
+        <v-btn variant="elevated" color="grey-lighten-2" class="font-bold text-gray-800" @click="dialogDeleteCertificacao = false">Cancelar</v-btn>
+        <v-btn variant="elevated" color="red" class="bg-red-600 text-white font-bold" @click="confirmarDeleteCertificacao">Excluir</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -995,4 +1027,5 @@ onMounted(async () => {
       ></v-btn>
     </template>
   </v-snackbar>
+  </div>
 </template>

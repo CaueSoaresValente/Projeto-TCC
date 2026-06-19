@@ -11,7 +11,7 @@
 //   1. O Controller recebe a requisição HTTP
 //   2. O Controller chama o Service
 //   3. O Service chama ESTE Repository
-//   4. Este Repository usa o TypeORM para falar com o banco MySQL
+//   4. Este Repository usa o TypeORM para falar com o banco PostgreSQL
 // ============================================================
 
 import { AppDataSource } from '../../config/data-source.js';

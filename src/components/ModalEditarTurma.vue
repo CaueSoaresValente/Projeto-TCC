@@ -1,10 +1,11 @@
 <script setup>
-import { ref, watch, onMounted, computed } from "vue";
-import { getUsuarioLogado } from "@/services/api";
+import { ref, watch, onMounted, computed, nextTick } from "vue";
+import { getUsuarioLogado, listarAreas, listarOpps, listarCompetencias, listarUCsPorArea } from "@/services/api";
 
 const props = defineProps({
   modelValue: Boolean,
   turma: Object,
+  loading: Boolean,
 });
 
 const emit = defineEmits(["update:modelValue", "save"]);
@@ -36,6 +37,7 @@ const form = ref({
   dataFim: "",
   aulasSemana: 0,
   totalAulas: 0,
+  descricao: "",
 });
 
 const todosOpps = ref([]);
@@ -63,10 +65,24 @@ const filteredCompetencias = computed(() => {
   return list;
 });
 
+// Lista de áreas derivada das UCs carregadas — garante que o OPP veja
+// UCs de TODAS as áreas do sistema (não apenas as suas) ao montar a turma
+const areasParaFiltroUC = computed(() => {
+  const mapaAreas = new Map();
+  for (const uc of todasUnidadesCurriculares.value) {
+    if (uc.idArea && !mapaAreas.has(uc.idArea)) {
+      mapaAreas.set(uc.idArea, {
+        title: uc.areaNome || `Área ${uc.idArea}`,
+        value: uc.idArea,
+      });
+    }
+  }
+  return [...mapaAreas.values()].sort((a, b) => a.title.localeCompare(b.title));
+});
+
 async function carregarAreas() {
   try {
-    const response = await fetch("http://localhost:3001/api/areas");
-    const data = await response.json();
+    const data = await listarAreas();
     areasDisponiveis.value = data.map(area => ({
       title: area.nome,
       value: area.idArea
@@ -78,8 +94,7 @@ async function carregarAreas() {
 
 async function carregarOpps() {
   try {
-    const response = await fetch("http://localhost:3001/api/opps");
-    const data = await response.json();
+    const data = await listarOpps();
     todosOpps.value = data;
     filtrarOpps();
   } catch (error) {
@@ -97,9 +112,29 @@ function filtrarOpps() {
     return opp.oppAreas && opp.oppAreas.some(oa => oa.idArea === areaId);
   });
   oppsList.value = oppsFiltrados.map(opp => ({
-    label: opp.cadastro.nome,
+    label: opp.cadastro?.nome || "Sem nome",
     value: opp.idOPP
   }));
+
+  // Blindagem Premium: Garante que o OPP atual da turma sempre tenha seu nome exibido (e nunca o ID numérico)
+  // Somente se a área atual do formulário for a mesma área original da turma
+  if (props.turma?.idOPP && form.value.idArea === props.turma?.idArea) {
+    const jaEstaNaLista = oppsList.value.some(o => o.value === props.turma.idOPP);
+    if (!jaEstaNaLista) {
+      const oppOriginal = todosOpps.value.find(o => o.idOPP === props.turma.idOPP);
+      if (oppOriginal) {
+        oppsList.value.push({
+          label: oppOriginal.cadastro?.nome || "Sem nome",
+          value: oppOriginal.idOPP
+        });
+      } else if (props.turma.oppNome) {
+        oppsList.value.push({
+          label: props.turma.oppNome,
+          value: props.turma.idOPP
+        });
+      }
+    }
+  }
 }
 
 async function carregarUCs() {
@@ -109,8 +144,7 @@ async function carregarUCs() {
     return;
   }
   try {
-    const response = await fetch(`http://localhost:3001/api/competencias/area/${areaId}`);
-    const data = await response.json();
+    const data = await listarUCsPorArea(areaId);
     unidadesCurriculares.value = data.map(uc => {
       let carga = "";
       if (uc.descricao) {
@@ -130,11 +164,14 @@ async function carregarUCs() {
   }
 }
 
+// Flag para evitar que o watch limpe idOPP durante a inicialização
+const dadosCarregados = ref(false);
+
 // Observa mudanças na área para filtrar OPPs e UCs
 watch(() => form.value.idArea, (novaAreaId, antigaAreaId) => {
   filtrarOpps();
-  // Limpa a seleção de OPP e UCs apenas se for uma troca intencional (antigaAreaId !== undefined)
-  if (antigaAreaId !== undefined && antigaAreaId !== null && novaAreaId !== antigaAreaId) {
+  // Limpa a seleção de OPP e UCs apenas se for uma troca intencional do usuário (após dados carregados)
+  if (dadosCarregados.value && antigaAreaId !== undefined && antigaAreaId !== null && novaAreaId !== antigaAreaId) {
     form.value.idOPP = null;
     Object.keys(ucsSalvas.value).forEach(dia => {
       ucsSalvas.value[dia] = [];
@@ -146,12 +183,24 @@ onMounted(async () => {
   await carregarAreas();
   await carregarOpps();
   await carregarTodasUCs();
+
+  // Após todos os dados carregarem, re-popular o formulário para garantir que
+  // os v-selects de Área e OPP encontrem os itens correspondentes na lista
+  if (props.turma) {
+    form.value.idArea = props.turma.idArea || null;
+    filtrarOpps();
+    form.value.idOPP = props.turma.idOPP || null;
+  }
+
+  // Liberar o watch para funcionar normalmente nas interações do usuário
+  nextTick(() => {
+    dadosCarregados.value = true;
+  });
 });
 
 async function carregarTodasUCs() {
   try {
-    const response = await fetch("http://localhost:3001/api/competencias");
-    const data = await response.json();
+    const data = await listarCompetencias();
     todasUnidadesCurriculares.value = data.map(uc => {
       let carga = "";
       if (uc.descricao) {
@@ -162,6 +211,7 @@ async function carregarTodasUCs() {
         idUC: uc.idUC,
         nome: uc.nome,
         idArea: uc.idArea,
+        areaNome: uc.area?.nome || '',
         carga: carga || undefined
       };
     });
@@ -244,6 +294,7 @@ watch(() => props.turma, (newTurma) => {
       dataFim: newTurma.dataTerminoISO || newTurma.dataFim || "",
       aulasSemana: newTurma.aulasSemana || 4,
       totalAulas: newTurma.totalAulas || 16,
+      descricao: newTurma.descricao || "",
     };
 
     // Mapear a grade existente para o formato do addTurmas
@@ -251,21 +302,11 @@ watch(() => props.turma, (newTurma) => {
     if (newTurma.grade) {
       newTurma.grade.forEach(slot => {
         const p = slot.periodo;
-        const pLower = p.toLowerCase();
         const diaMap = { 'Seg': 'segunda', 'Ter': 'terca', 'Qua': 'quarta', 'Qui': 'quinta', 'Sex': 'sexta', 'Sáb': 'sabado' };
 
         Object.keys(slot.aulas || {}).forEach(dia => {
           const diaKey = diaMap[dia];
           if (diaKey) {
-            // Mapeia os sub-tipos de integral corretamente
-            if (p === 'INT_MT' || p === 'INT_MN' || p === 'INT_TN') {
-              selectedPeriodo.value[diaKey] = p;
-            } else if (pLower.includes('integral') || p === 'INT') {
-              selectedPeriodo.value[diaKey] = 'INT_MT'; // Integral padrão = Manhã+Tarde
-            } else if (pLower.startsWith('m')) selectedPeriodo.value[diaKey] = 'manha';
-            else if (pLower.startsWith('t')) selectedPeriodo.value[diaKey] = 'tarde';
-            else if (pLower.startsWith('n')) selectedPeriodo.value[diaKey] = 'noite';
-
             if (!ucsSalvas.value[diaKey].some(item => item.idUC === slot.aulas[dia].idUC && item.periodo === slot.periodo)) {
               ucsSalvas.value[diaKey].push({ 
                 uc: slot.aulas[dia].disciplina, 
@@ -276,6 +317,59 @@ watch(() => props.turma, (newTurma) => {
             }
           }
         });
+      });
+
+      // Deduzir o selectedPeriodo com base nas UCs inseridas para cada dia
+      Object.keys(ucsSalvas.value).forEach(diaKey => {
+        const ucs = ucsSalvas.value[diaKey];
+        if (ucs.length === 0) {
+          selectedPeriodo.value[diaKey] = null;
+          return;
+        }
+
+        let hasManha = false;
+        let hasTarde = false;
+        let hasNoite = false;
+
+        ucs.forEach(item => {
+          const p = item.periodo.trim();
+          const pUpper = p.toUpperCase();
+          const pLower = p.toLowerCase();
+
+          if (pUpper === 'INT_MT' || pLower.includes('manhã + tarde') || pLower.includes('manha + tarde')) {
+            hasManha = true;
+            hasTarde = true;
+          } else if (pUpper === 'INT_MN' || pLower.includes('manhã + noite') || pLower.includes('manha + noite')) {
+            hasManha = true;
+            hasNoite = true;
+          } else if (pUpper === 'INT_TN' || pLower.includes('tarde + noite')) {
+            hasTarde = true;
+            hasNoite = true;
+          } else if (pLower.includes('integral') || pUpper === 'INT' || pUpper === 'INTEGRAL') {
+            hasManha = true;
+            hasTarde = true;
+          } else if (pLower.startsWith('m') || pUpper === 'MANHÃ' || pUpper === 'MANHA') {
+            hasManha = true;
+          } else if (pLower.startsWith('t') || pUpper === 'TARDE') {
+            hasTarde = true;
+          } else if (pLower.startsWith('n') || pUpper === 'NOITE') {
+            hasNoite = true;
+          }
+        });
+
+        if (hasManha && hasTarde) {
+          selectedPeriodo.value[diaKey] = 'INT_MT';
+        } else if (hasManha && hasNoite) {
+          selectedPeriodo.value[diaKey] = 'INT_MN';
+        } else if (hasTarde && hasNoite) {
+          selectedPeriodo.value[diaKey] = 'INT_TN';
+        } else if (hasManha) {
+          selectedPeriodo.value[diaKey] = 'manha';
+        } else if (hasTarde) {
+          selectedPeriodo.value[diaKey] = 'tarde';
+        } else if (hasNoite) {
+          selectedPeriodo.value[diaKey] = 'noite';
+        }
       });
     }
   }
@@ -442,7 +536,7 @@ const listaDeProfessores = computed(() => {
   const profs = new Set();
   Object.values(ucsSalvas.value).forEach(ucsNoDia => {
     ucsNoDia.forEach(item => {
-      if (item.professor) profs.add(item.professor);
+      if (item.professor && item.professor !== 'A definir') profs.add(item.professor);
     });
   });
   return Array.from(profs);
@@ -478,40 +572,66 @@ const diasLabels = {
   sabado: 'Sábado',
 };
 
-function validarCoberturaIntegral() {
+function validarCoberturaGrade() {
   const erros = [];
 
-  const turnosExigidos = {
-    'INT_MT': {
-      turno1: { nome: 'Manhã', periodos: ['M01', 'M02', 'Manhã', 'Manhã + Tarde'] },
-      turno2: { nome: 'Tarde', periodos: ['T01', 'T02', 'Tarde', 'Manhã + Tarde'] },
-    },
-    'INT_MN': {
-      turno1: { nome: 'Manhã', periodos: ['M01', 'M02', 'Manhã', 'Manhã + Noite'] },
-      turno2: { nome: 'Noite', periodos: ['N01', 'N02', 'Noite', 'Manhã + Noite'] },
-    },
-    'INT_TN': {
-      turno1: { nome: 'Tarde', periodos: ['T01', 'T02', 'Tarde', 'Tarde + Noite'] },
-      turno2: { nome: 'Noite', periodos: ['N01', 'N02', 'Noite', 'Tarde + Noite'] },
-    },
-  };
-
   for (const [dia, periodo] of Object.entries(selectedPeriodo.value)) {
-    if (!periodo || !turnosExigidos[periodo]) continue;
+    if (!periodo) continue;
 
     const ucsNoDia = ucsSalvas.value[dia] || [];
     const periodosUsados = ucsNoDia.map(uc => uc.periodo);
-    const exigencias = turnosExigidos[periodo];
 
-    const temTurno1 = exigencias.turno1.periodos.some(p => periodosUsados.includes(p));
-    const temTurno2 = exigencias.turno2.periodos.some(p => periodosUsados.includes(p));
+    const temManhaCompleta = periodosUsados.includes('Manhã') ||
+                             periodosUsados.includes('Manhã + Tarde') ||
+                             periodosUsados.includes('Manhã + Noite') ||
+                             (periodosUsados.includes('M01') && periodosUsados.includes('M02'));
 
-    const faltando = [];
-    if (!temTurno1) faltando.push(exigencias.turno1.nome);
-    if (!temTurno2) faltando.push(exigencias.turno2.nome);
+    const temTardeCompleta = periodosUsados.includes('Tarde') ||
+                             periodosUsados.includes('Manhã + Tarde') ||
+                             periodosUsados.includes('Tarde + Noite') ||
+                             (periodosUsados.includes('T01') && periodosUsados.includes('T02'));
 
-    if (faltando.length > 0) {
-      erros.push(`• ${diasLabels[dia]}: Faltam UCs no período da ${faltando.join(' e ')}. O dia integral exige cobertura de ${exigencias.turno1.nome} e ${exigencias.turno2.nome}.`);
+    const temNoiteCompleta = periodosUsados.includes('Noite') ||
+                             periodosUsados.includes('Manhã + Noite') ||
+                             periodosUsados.includes('Tarde + Noite') ||
+                             (periodosUsados.includes('N01') && periodosUsados.includes('N02'));
+
+    if (periodo === 'manha') {
+      if (!temManhaCompleta) {
+        erros.push(`• ${diasLabels[dia]}: O período da Manhã deve ser totalmente preenchido. Selecione uma UC com o período "Manhã" inteiro ou duas UCs cobrindo "M01" e "M02".`);
+      }
+    } else if (periodo === 'tarde') {
+      if (!temTardeCompleta) {
+        erros.push(`• ${diasLabels[dia]}: O período da Tarde deve ser totalmente preenchido. Selecione uma UC com o período "Tarde" inteiro ou duas UCs cobrindo "T01" e "T02".`);
+      }
+    } else if (periodo === 'noite') {
+      if (!temNoiteCompleta) {
+        erros.push(`• ${diasLabels[dia]}: O período da Noite deve ser totalmente preenchido. Selecione uma UC com o período "Noite" inteiro ou duas UCs cobrindo "N01" e "N02".`);
+      }
+    } else if (periodo === 'INT_MT') {
+      if (periodosUsados.includes('Manhã + Tarde')) continue;
+      const faltando = [];
+      if (!temManhaCompleta) faltando.push('Manhã (exige "Manhã" inteiro ou ambos "M01" e "M02")');
+      if (!temTardeCompleta) faltando.push('Tarde (exige "Tarde" inteiro ou ambos "T01" e "T02")');
+      if (faltando.length > 0) {
+        erros.push(`• ${diasLabels[dia]} (Integral Manhã + Tarde): Os turnos devem ser totalmente preenchidos. Faltam: ${faltando.join(' e ')}.`);
+      }
+    } else if (periodo === 'INT_MN') {
+      if (periodosUsados.includes('Manhã + Noite')) continue;
+      const faltando = [];
+      if (!temManhaCompleta) faltando.push('Manhã (exige "Manhã" inteiro ou ambos "M01" e "M02")');
+      if (!temNoiteCompleta) faltando.push('Noite (exige "Noite" inteiro ou ambos "N01" e "N02")');
+      if (faltando.length > 0) {
+        erros.push(`• ${diasLabels[dia]} (Integral Manhã + Noite): Os turnos devem ser totalmente preenchidos. Faltam: ${faltando.join(' e ')}.`);
+      }
+    } else if (periodo === 'INT_TN') {
+      if (periodosUsados.includes('Tarde + Noite')) continue;
+      const faltando = [];
+      if (!temTardeCompleta) faltando.push('Tarde (exige "Tarde" inteiro ou ambos "T01" e "T02")');
+      if (!temNoiteCompleta) faltando.push('Noite (exige "Noite" inteiro ou ambos "N01" e "N02")');
+      if (faltando.length > 0) {
+        erros.push(`• ${diasLabels[dia]} (Integral Tarde + Noite): Os turnos devem ser totalmente preenchidos. Faltam: ${faltando.join(' e ')}.`);
+      }
     }
   }
 
@@ -519,10 +639,73 @@ function validarCoberturaIntegral() {
 }
 
 function salvar() {
-  // Validação de cobertura integral: se o dia é integral, TODOS os turnos precisam ser cobertos
-  const errosCobertura = validarCoberturaIntegral();
-  if (errosCobertura.length > 0) {
-    showAlert("Erro na grade semanal:\n\n" + errosCobertura.join("\n"), "error", "mdi-alert-octagon");
+  if (!form.value.dataInicio || !form.value.dataFim) {
+    showAlert("Por favor, preencha as datas de início e término!", "warning");
+    return;
+  }
+
+  const startDate = new Date(form.value.dataInicio + "T00:00:00");
+  const endDate = new Date(form.value.dataFim + "T00:00:00");
+
+  if (startDate > endDate) {
+    showAlert("A data de início não pode ser maior que a data de término!", "warning");
+    return;
+  }
+
+  // Validação: impedir seleção de dias da semana que não ocorrem no período da turma
+  const mapaDiasJs = {
+    segunda: 1,
+    terca: 2,
+    quarta: 3,
+    quinta: 4,
+    sexta: 5,
+    sabado: 6
+  };
+
+  const diasSemOcorrencia = [];
+  for (const [dia, periodo] of Object.entries(selectedPeriodo.value)) {
+    if (periodo !== null) {
+      const diaSemanaJs = mapaDiasJs[dia];
+      let ocorrencias = 0;
+      const current = new Date(startDate);
+      while (current <= endDate) {
+        if (current.getDay() === diaSemanaJs) {
+          ocorrencias++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      if (ocorrencias === 0) {
+        diasSemOcorrencia.push(diasLabels[dia] || dia);
+      }
+    }
+  }
+
+  if (diasSemOcorrencia.length > 0) {
+    const dataInicioBR = form.value.dataInicio.split("-").reverse().join("/");
+    const dataFimBR = form.value.dataFim.split("-").reverse().join("/");
+    showAlert(`O intervalo de datas selecionado (de ${dataInicioBR} a ${dataFimBR}) não contém o seguinte dia da semana: ${diasSemOcorrencia.join(", ")}. Remova esse dia da grade ou ajuste as datas da turma.`, "warning");
+    return;
+  }
+
+  // Validação: impedir dias com período selecionado mas sem UC
+  const diasSemUC = [];
+  for (const [dia, periodo] of Object.entries(selectedPeriodo.value)) {
+    if (periodo !== null) {
+      const ucsDesteDia = ucsSalvas.value[dia] || [];
+      if (ucsDesteDia.length === 0) {
+        diasSemUC.push(diasLabels[dia] || dia);
+      }
+    }
+  }
+  if (diasSemUC.length > 0) {
+    showAlert("Por favor, adicione pelo menos uma Unidade Curricular para os dias com período selecionado: " + diasSemUC.join(", "), "warning");
+    return;
+  }
+
+  // Validação de cobertura da grade semanal: garante que todos os turnos selecionados estejam totalmente preenchidos
+  const errosGrade = validarCoberturaGrade();
+  if (errosGrade.length > 0) {
+    showAlert("Erro na grade semanal:\n\n" + errosGrade.join("\n"), "error", "mdi-alert-octagon");
     return;
   }
 
@@ -679,8 +862,12 @@ function salvar() {
               <p class="mb-2 font-bold text-xs text-gray-500 uppercase">Professores Adicionados</p>
               <div class="flex flex-wrap gap-2">
                 <v-chip v-for="prof in listaDeProfessores" :key="prof" size="small" color="red" variant="tonal"
-                  class="font-bold" closable @click:close="removerProfessor(prof)">
-                  <v-avatar start icon="mdi-account" color="red-lighten-4"></v-avatar>
+                   class="font-bold" closable @click:close="removerProfessor(prof)">
+                  <v-avatar start class="shadow-sm border border-gray-200">
+                    <div class="w-full h-full flex items-center justify-center font-black text-white bg-gradient-to-br from-green-600 to-green-500 text-[10px] uppercase">
+                      {{ prof ? prof.charAt(0).toUpperCase() : "?" }}
+                    </div>
+                  </v-avatar>
                   {{ prof }}
                 </v-chip>
                 <v-chip v-if="listaDeProfessores.length === 0" size="small" variant="text">Nenhum professor
@@ -709,6 +896,13 @@ function salvar() {
                 <v-text-field v-model="form.totalAulas" type="number" variant="filled" density="compact"
                   hide-details readonly></v-text-field>
               </div>
+            </div>
+
+            <!-- Descrição -->
+            <div class="mt-4">
+              <p class="mb-1 font-bold text-xs text-gray-500 uppercase">Descrição (Opcional)</p>
+              <v-textarea v-model="form.descricao" label="..." rows="3" variant="filled" density="compact"
+                hide-details></v-textarea>
             </div>
           </div>
         </div>
@@ -796,30 +990,58 @@ function salvar() {
                     <p class="text-[13px] font-bold text-gray-500 dark:text-gray-400 leading-tight mb-4">
                       Toque para Selecionar o Periodo
                     </p>
-                    <div class="w-full space-y-1">
+                    <div class="w-full px-4 mb-2">
                       <!-- Menu principal: Manhã, Tarde, Noite, Integral -->
                       <template v-if="!integralSubMenu[dia.value]">
-                        <v-btn v-for="p in periodos" :key="p.value" block variant="text" size="small"
-                          class="font-bold text-[15px] dark:text-white capitalize transition-all hover:bg-gray-50 dark:hover:bg-gray-700"
-                          @click="togglePeriodo(dia.value, p.value)">
-                          {{ p.label }}
-                        </v-btn>
+                        <div class="flex flex-col gap-2 pt-1">
+                          <button
+                            v-for="p in periodos"
+                            :key="p.value"
+                            class="w-full py-2 px-3 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2 hover:border-red-500 hover:text-red-600 dark:hover:border-red-500 dark:hover:text-red-400 transition-all duration-200 shadow-sm active:scale-98 cursor-pointer"
+                            @click="togglePeriodo(dia.value, p.value)"
+                          >
+                            <span
+                              class="w-2 h-2 rounded-full"
+                              :style="{
+                                backgroundColor:
+                                  p.value === 'manha' ? '#F59E0B' :
+                                  p.value === 'tarde' ? '#3B82F6' :
+                                  p.value === 'noite' ? '#6366F1' : '#10B981'
+                              }"
+                            ></span>
+                            {{ p.label }}
+                          </button>
+                        </div>
                       </template>
                       <!-- Sub-menu do Integral: 3 combinações -->
                       <template v-else>
-                        <p class="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-1">Qual Integral?</p>
-                        <p class="text-[14px] cursor-pointer font-bold text-emerald-600 hover:underline" @click="selecionarIntegral(dia.value, 'INT_MT')">
-                          Manhã + Tarde
-                        </p>
-                        <p class="text-[14px] cursor-pointer font-bold text-emerald-600 hover:underline" @click="selecionarIntegral(dia.value, 'INT_MN')">
-                          Manhã + Noite
-                        </p>
-                        <p class="text-[14px] cursor-pointer font-bold text-emerald-600 hover:underline" @click="selecionarIntegral(dia.value, 'INT_TN')">
-                          Tarde + Noite
-                        </p>
-                        <p class="text-[12px] cursor-pointer font-bold text-gray-400 hover:text-gray-600 mt-1" @click="integralSubMenu[dia.value] = false">
-                          ← Voltar
-                        </p>
+                        <div class="flex flex-col gap-2">
+                          <p class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1 text-center">Qual Integral?</p>
+                          <button
+                            class="w-full py-2 px-3 text-xs font-bold rounded-lg border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-950/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 hover:border-emerald-400 transition-all duration-200 active:scale-98 cursor-pointer"
+                            @click="selecionarIntegral(dia.value, 'INT_MT')"
+                          >
+                            Manhã + Tarde
+                          </button>
+                          <button
+                            class="w-full py-2 px-3 text-xs font-bold rounded-lg border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-950/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 hover:border-emerald-400 transition-all duration-200 active:scale-98 cursor-pointer"
+                            @click="selecionarIntegral(dia.value, 'INT_MN')"
+                          >
+                            Manhã + Noite
+                          </button>
+                          <button
+                            class="w-full py-2 px-3 text-xs font-bold rounded-lg border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-950/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 hover:border-emerald-400 transition-all duration-200 active:scale-98 cursor-pointer"
+                            @click="selecionarIntegral(dia.value, 'INT_TN')"
+                          >
+                            Tarde + Noite
+                          </button>
+                          <button
+                            class="w-full py-1 text-[11px] font-bold text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors flex items-center justify-center gap-1 mt-1 cursor-pointer"
+                            @click="integralSubMenu[dia.value] = false"
+                          >
+                            <v-icon icon="mdi-arrow-left" size="12"></v-icon> Voltar
+                          </button>
+                        </div>
                       </template>
                     </div>
                   </div>
@@ -835,19 +1057,25 @@ function salvar() {
       <v-card-actions class="pa-4 bg-gray-50 dark:bg-gray-800">
         <v-spacer></v-spacer>
         <v-btn variant="text" color="grey-darken-1" @click="emit('update:modelValue', false)">Cancelar</v-btn>
-        <v-btn color="red-darken-1" class="bg-red-600 text-white px-6" @click="salvar">Salvar</v-btn>
+        <v-btn color="red-darken-1" class="bg-red-600 text-white px-6" :loading="loading" :disabled="loading" @click="salvar">Salvar</v-btn>
       </v-card-actions>
     </v-card>
 
-    <v-dialog v-model="modalUC" max-width="520">
-      <v-card class="pa-5 rounded-xl">
-        <v-card-title class="text-lg font-bold">Selecionar Unidades Curriculares</v-card-title>
+    <v-dialog v-model="modalUC" max-width="550" persistent>
+      <v-card class="rounded-lg border-t-4 border-red-600 shadow-xl dark:bg-[#121212]">
+        <!-- Título com o padrão do sistema -->
+        <v-card-title class="px-6 pt-6 pb-2">
+          <h2 class="text-xl font-bold text-gray-800 dark:text-white">Selecionar Unidades Curriculares</h2>
+          <p class="text-[12px] text-gray-500 font-medium">Escolha as matérias que compõem este dia da turma</p>
+        </v-card-title>
 
-        <!-- Área de Filtros -->
-        <div class="space-y-3 mb-4 mt-2">
+        <v-divider class="mx-6 mb-4"></v-divider>
+
+        <!-- Área de Filtros - Seguindo o padrão de inputs do formulário -->
+        <div class="px-6 space-y-3 mb-4">
           <div>
             <p class="mb-1 font-bold text-[12px] text-gray-500 uppercase tracking-wide">Filtrar por Área</p>
-            <v-select v-model="areaFiltroModal" :items="areasDisponiveis" item-title="title" item-value="value"
+            <v-select v-model="areaFiltroModal" :items="areasParaFiltroUC" item-title="title" item-value="value"
               placeholder="Selecione a área..." variant="filled" density="compact" hide-details clearable></v-select>
           </div>
 
@@ -859,24 +1087,30 @@ function salvar() {
         </div>
 
         <!-- Lista de UCs com checkboxes + período -->
-        <div style="max-height: 350px; overflow-y: auto" class="pr-1 pt-2">
-          <div v-for="(uc, index) in filteredCompetencias" :key="index">
-            <div class="flex items-center gap-2 mb-4 pb-2 px-4 shadow-sm border-b">
-              <v-checkbox :model-value="isUCSelected(uc.idUC)" @update:model-value="toggleUCSelection(uc)"
-                :label="uc.carga ? uc.nome + ' (' + uc.carga + ')' : uc.nome" color="red" hide-details density="compact"
-                :disabled="!isUCSelected(uc.idUC) && periodosDisponiveisPara(uc.idUC).length === 0"
-                class="flex-1"></v-checkbox>
-              <v-select v-if="isUCSelected(uc.idUC)" :model-value="getSelectedUCPeriod(uc.idUC)"
-                @update:model-value="updateUCPeriod(uc.idUC, $event)" :items="periodosDisponiveisPara(uc.idUC)" label="Período"
-                variant="outlined" density="compact" hide-details class="max-w-[130px] mt-2"></v-select>
-            </div>
+        <div style="max-height: 350px; overflow-y: auto" class="px-6 pt-2">
+          <div v-for="(uc, index) in filteredCompetencias" :key="uc.idUC" class="flex items-center gap-2 mb-4">
+            <v-checkbox :model-value="isUCSelected(uc.idUC)" @update:model-value="toggleUCSelection(uc)"
+              :label="uc.carga ? uc.nome + ' (' + uc.carga + ')' : uc.nome" color="red" hide-details density="compact"
+              :disabled="!isUCSelected(uc.idUC) && periodosDisponiveisPara(uc.idUC).length === 0"
+              class="flex-1"></v-checkbox>
+            <v-select v-if="isUCSelected(uc.idUC)" :model-value="getSelectedUCPeriod(uc.idUC)"
+              @update:model-value="updateUCPeriod(uc.idUC, $event)" :items="periodosDisponiveisPara(uc.idUC)" label="Período"
+              variant="outlined" density="compact" hide-details class="max-w-[130px]"></v-select>
+          </div>
+          <div v-if="filteredCompetencias.length === 0" class="text-center py-10 text-gray-400 font-bold uppercase text-xs">
+            Nenhuma unidade encontrada
           </div>
         </div>
 
-        <!-- Botões do modal -->
-        <v-card-actions class="justify-end mt-4">
-          <v-btn variant="text" @click="modalUC = false">Cancelar</v-btn>
-          <v-btn color="red" class="bg-red-600 text-white" @click="salvarUCs">Salvar</v-btn>
+        <!-- Botões de Ação - Padronizados -->
+        <v-card-actions class="px-6 py-6 pt-2">
+          <v-spacer></v-spacer>
+          <v-btn variant="elevated" color="grey-lighten-2" class="font-bold px-6 text-none text-gray-800" @click="modalUC = false">
+            Cancelar
+          </v-btn>
+          <v-btn variant="elevated" color="red" class="bg-red-600 text-white px-8 text-none font-bold" @click="salvarUCs">
+            Salvar Seleção
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

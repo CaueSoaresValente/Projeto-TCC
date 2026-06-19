@@ -17,7 +17,16 @@ export class CadastroRepository {
       .createQueryBuilder("cadastro")
       .addSelect("cadastro.senha")
       .where("cadastro.email = :email", { email })
+      .andWhere("cadastro.status = :status", { status: true })
       .getOne();
+  }
+
+  /**
+   * Busca cadastro ATIVO pelo email SEM carregar a senha.
+   * Usado no login via Google OAuth onde a senha não é necessária.
+   */
+  async findByEmailPublic(email: string): Promise<Cadastro | null> {
+    return await this.repo.findOne({ where: { email, status: true } });
   }
 
   async findByNome(nome: string): Promise<Cadastro | null> {
@@ -39,7 +48,7 @@ export class CadastroRepository {
   }
 
   async listAll(): Promise<Cadastro[]> {
-    // Buscamos usuários onde status é verdadeiro (1 no MySQL)
+    // Buscamos usuários onde status é verdadeiro (true no PostgreSQL)
     return await this.repo.find({ 
       where: { status: true },
       order: { nome: 'ASC' } 

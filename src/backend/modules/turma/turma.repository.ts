@@ -6,6 +6,7 @@ const RELATIONS = [
   'criador',
   'opp',
   'opp.cadastro',
+  'area',
   'turmaUCs',
   'turmaUCs.unidadeCurricular',
   'turmaUCs.unidadeCurricular.area',
@@ -35,11 +36,48 @@ export class TurmaRepository {
     });
   }
 
+  async findByOPPAreas(idOPP: number, idsAreas: number[]): Promise<Turma[]> {
+    if (idsAreas.length === 0) {
+      return this.repo.find({
+        where: { status: true, idOPP },
+        relations: [...RELATIONS],
+        order: { idTurma: 'DESC' },
+      });
+    }
+
+    return this.repo.createQueryBuilder('turma')
+      .leftJoinAndSelect('turma.criador', 'criador')
+      .leftJoinAndSelect('turma.opp', 'opp')
+      .leftJoinAndSelect('opp.cadastro', 'oppCadastro')
+      .leftJoinAndSelect('turma.area', 'turmaArea')
+      .leftJoinAndSelect('turma.turmaUCs', 'turmaUCs')
+      .leftJoinAndSelect('turmaUCs.unidadeCurricular', 'unidadeCurricular')
+      .leftJoinAndSelect('unidadeCurricular.area', 'area')
+      .leftJoinAndSelect('turma.professorTurmas', 'professorTurmas')
+      .leftJoinAndSelect('professorTurmas.professor', 'professor')
+      .leftJoinAndSelect('professor.cadastro', 'professorCadastro')
+      .leftJoinAndSelect('professorTurmas.turmaUC', 'turmaUC')
+      .where('turma.status = :status', { status: true })
+      .andWhere('(turma.idOPP = :idOPP OR unidadeCurricular.idArea IN (:...idsAreas))', { idOPP, idsAreas })
+      .orderBy('turma.idTurma', 'DESC')
+      .getMany();
+  }
+
   async findById(idTurma: number): Promise<Turma | null> {
-    return this.repo.findOne({
-      where: { idTurma, status: true },
-      relations: [...RELATIONS],
-    });
+    return this.repo.createQueryBuilder('turma')
+      .leftJoinAndSelect('turma.criador', 'criador')
+      .leftJoinAndSelect('turma.opp', 'opp')
+      .leftJoinAndSelect('opp.cadastro', 'oppCadastro')
+      .leftJoinAndSelect('turma.area', 'turmaArea')
+      .leftJoinAndSelect('turma.turmaUCs', 'turmaUCs')
+      .leftJoinAndSelect('turmaUCs.unidadeCurricular', 'unidadeCurricular')
+      .leftJoinAndSelect('unidadeCurricular.area', 'area')
+      .leftJoinAndSelect('turma.professorTurmas', 'professorTurmas')
+      .leftJoinAndSelect('professorTurmas.professor', 'professor')
+      .leftJoinAndSelect('professor.cadastro', 'professorCadastro')
+      .leftJoinAndSelect('professorTurmas.turmaUC', 'turmaUC')
+      .where('turma.idTurma = :idTurma AND turma.status = :status', { idTurma, status: true })
+      .getOne();
   }
 
   async create(data: Partial<Turma>): Promise<Turma> {
@@ -72,19 +110,17 @@ export class TurmaRepository {
     );
 
     if (toDelete.length > 0) {
-      await this.turmaUCRepo.remove(toDelete);
+      await this.turmaUCRepo.delete(toDelete.map(ex => ex.idTurmaUC));
     }
 
     if (toAdd.length > 0) {
-      const registros = toAdd.map((h) =>
-        this.turmaUCRepo.create({
-          idTurma,
-          idUC: h.idUC,
-          diaSemana: h.diaSemana.toLowerCase(),
-          periodo: h.periodo,
-        }),
-      );
-      await this.turmaUCRepo.save(registros);
+      const registros = toAdd.map((h) => ({
+        idTurma,
+        idUC: h.idUC,
+        diaSemana: h.diaSemana.toLowerCase(),
+        periodo: h.periodo,
+      }));
+      await this.turmaUCRepo.insert(registros);
     }
   }
 

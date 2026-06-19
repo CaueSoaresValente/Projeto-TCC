@@ -1,16 +1,16 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
-import Menu from '@/components/Menu.vue';
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import ModalEditarTurma from "@/components/ModalEditarTurma.vue";
-import { listarTurmas, excluirTurma, editarTurma, getUsuarioLogado } from "@/services/api";
+import { listarTurmas, excluirTurma, editarTurma, atualizarDescricaoTurma, listarAreas, getUsuarioLogado } from "@/services/api";
 
 const usuarioLogado = getUsuarioLogado();
 
-const carregando = ref(false);
+const carregando = ref(true);
 const erro = ref("");
 
-const selectedPeriod = ref("Todas");
+const selectedArea = ref("Todas");
 const search = ref("");
+const areasDisponiveis = ref([]);
 
 const modalidadeLabels = {
     tec: "Técnico",
@@ -18,13 +18,17 @@ const modalidadeLabels = {
     fic: "Formação Inicial e Continuada (FIC)"
 };
 
-
-// Itens do menu dropdown do avatar (Padronizado)
-const items = ref([
-  { title: "Meu Perfil", icon: "mdi-account-outline" },
-  { title: "Sair", icon: "mdi-logout" },
-]);
-
+function formatarLabel(label) {
+    if (!label) return { nome: "", sufixo: "" };
+    const parts = label.split("-");
+    if (parts.length > 1) {
+        return {
+            nome: parts.slice(0, -1).join("-").trim(),
+            sufixo: parts[parts.length - 1].trim()
+        };
+    }
+    return { nome: label, sufixo: "" };
+}
 
 const diasSemana = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -38,6 +42,7 @@ function abrirGrade(turma) {
 }
 
 const editModal = ref(false);
+const salvando = ref(false);
 const turmaParaEditar = ref(null);
 
 function abrirEdicao(turma) {
@@ -94,8 +99,9 @@ async function salvarTurma(form) {
         editModal.value = false;
         return;
     }
+    salvando.value = true;
     try {
-        await editarTurma(turmaParaEditar.value.idTurma, {
+        const result = await editarTurma(turmaParaEditar.value.idTurma, {
             nome: form.label,
             tipoCurso: form.modalidade,
             dataInicio: form.dataInicio,
@@ -103,12 +109,34 @@ async function salvarTurma(form) {
             horarios: form.horarios,
             idOPP: form.idOPP,
             idArea: form.idArea,
+            descricao: form.descricao,
         });
+        
+        // Atualiza a turma localmente na lista sem precisar fazer um fetch pesado de todas as turmas
+        const index = turmas.value.findIndex(t => t.idTurma === result.idTurma);
+        if (index !== -1) {
+            turmas.value[index] = result;
+        } else {
+            await carregarTurmas();
+        }
+
         editModal.value = false;
         showAlert("Turma salva com sucesso!");
-        await carregarTurmas();
     } catch (e) {
         showAlert(formatarErro(e.message) || "Erro ao salvar turma", "error", "mdi-alert-circle");
+    } finally {
+        salvando.value = false;
+    }
+}
+
+async function salvarDescricaoTurma(turma) {
+    try {
+        await editarTurma(turma.idTurma, {
+            descricao: turma.descricao
+        });
+        showAlert("Descrição salva com sucesso!", "success");
+    } catch (e) {
+        showAlert(formatarErro(e.message) || "Erro ao salvar descrição", "error", "mdi-alert-circle");
     }
 }
 
@@ -144,8 +172,29 @@ function formatarErro(mensagem) {
     return mensagem;
 }
 
-onMounted(() => {
+let wsListener = null;
+onMounted(async () => {
     carregarTurmas();
+    try {
+        areasDisponiveis.value = await listarAreas();
+    } catch (e) {
+        console.error('Erro ao carregar áreas:', e);
+    }
+
+    wsListener = (event) => {
+        const detail = event.detail;
+        if (detail.entity === 'turmas' || detail.entity === 'areas') {
+            console.log("🔄 Recarregando turmas em tempo real...");
+            carregarTurmas();
+        }
+    };
+    window.addEventListener('websocket-data-updated', wsListener);
+});
+
+onBeforeUnmount(() => {
+    if (wsListener) {
+        window.removeEventListener('websocket-data-updated', wsListener);
+    }
 });
 
 const periodoDescricoes = {
@@ -163,30 +212,34 @@ const periodoDescricoes = {
 };
 
 const filteredTurmas = computed(() => {
-    // DIDÁTICA: Como 'turmas' agora é uma 'ref', precisamos acessar '.value'
     return turmas.value.filter(turma => {
-        
-        const matchesPeriod = selectedPeriod.value === "Todas" || 
-                            (selectedPeriod.value === "Manhã" && turma.siglas.startsWith('M')) ||
-                            (selectedPeriod.value === "Tarde" && turma.siglas.startsWith('T')) ||
-                            (selectedPeriod.value === "Noite" && turma.siglas.startsWith('N')) ||
-                            (selectedPeriod.value === "Integral" && turma.siglas === 'INT');
+        // Filtro por área selecionada
+        let matchesArea = false;
+        if (selectedArea.value === "Todas") {
+            if (usuarioLogado?.funcao === 'opp') {
+                // Para OPP, exibe as turmas que possuem alguma das suas áreas associadas
+                matchesArea = turma.areas.some(a => areasDisponiveis.value.some(ad => ad.nome === a));
+            } else {
+                matchesArea = true;
+            }
+        } else {
+            matchesArea = turma.areas.some(a => a === selectedArea.value);
+        }
 
-       
+        // Filtro por texto de busca
         const term = search.value.trim().toLowerCase();
-        if (term === "") return matchesPeriod;
+        if (term === "") return matchesArea;
 
         const matchesLabel = turma.label.toLowerCase().includes(term);
         const matchesSigla = turma.siglas.toLowerCase().includes(term);
-        
         
         const modLabel = modalidadeLabels[turma.modalidade] || "";
         const matchesModalidade = turma.modalidade.toLowerCase().includes(term) || 
                                  modLabel.toLowerCase().includes(term);
 
-        const matchesAreas = turma.areas.some(area => area.toLowerCase().includes(term));
+        const matchesAreasSearch = turma.areas.some(area => area.toLowerCase().includes(term));
 
-        return matchesPeriod && (matchesLabel || matchesSigla || matchesModalidade || matchesAreas);
+        return matchesArea && (matchesLabel || matchesSigla || matchesModalidade || matchesAreasSearch);
     });
 });
 
@@ -194,93 +247,139 @@ const filteredTurmas = computed(() => {
 
 
 
+// ====================== AUTO-SAVE DESCRIÇÃO ======================
+const descricaoTimers = ref({});
+
+function salvarDescricao(turma) {
+  // Limpa o timer anterior para esta turma (debounce)
+  if (descricaoTimers.value[turma.idTurma]) {
+    clearTimeout(descricaoTimers.value[turma.idTurma]);
+  }
+  // Salva automaticamente após 800ms de inatividade
+  descricaoTimers.value[turma.idTurma] = setTimeout(async () => {
+    try {
+      await atualizarDescricaoTurma(turma.idTurma, turma.descricao || '');
+      showAlert("Descrição atualizada com sucesso!", "success", "mdi-check-circle");
+    } catch (e) {
+      console.error('Erro ao salvar descrição:', e);
+      showAlert("Erro ao salvar descrição: " + (formatarErro(e.message) || "Erro desconhecido"), "error", "mdi-alert-circle");
+    }
+  }, 800);
+}
+
 </script>
 
 <template>
-    <Menu />
-    <v-container class="max-w-[1600px] w-full mx-auto md:px-4 lg:px-50">
-        <div class="grid grid-cols-1 md:grid-cols-2  xl:grid-cols-3 2xl:grid-cols-5 gap-5">
-
-            <div class="col-span-full self-start">
-                <div class="flex items-center justify-between">
-                    <h1 class="text-3xl font-bold">Turmas</h1>
-                    <v-text-field label="Buscar" v-model="search" variant="outlined" density="compact" hide-details
-                        class="max-w-[200px]"></v-text-field>
+  <div>
+    <div class="px-4 md:px-10 lg:px-20 xl:px-40 pb-10">
+        <!-- Título e Cabeçalho da Página (Fora da Grid para alinhar margens e proporção perfeitamente) -->
+        <div class="mt-8 mb-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-red-50 dark:bg-red-950/30 p-2.5 rounded-xl text-red-600 dark:text-red-400 flex items-center justify-center shadow-sm">
+                        <v-icon icon="mdi-school" size="28"></v-icon>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">Turmas</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Visualize e gerencie todas as turmas cadastradas no sistema.</p>
+                    </div>
                 </div>
-
-                <v-chip-group v-model="selectedPeriod" mandatory class="mt-2" selected-class="bg-red-600! text-white!">
-                    <v-chip value="Todas" variant="tonal">Todas</v-chip>
-                    <v-chip value="Manhã" variant="tonal">Manhã</v-chip>
-                    <v-chip value="Tarde" variant="tonal">Tarde</v-chip>
-                    <v-chip value="Noite" variant="tonal">Noite</v-chip>
-                    <v-chip value="Integral" variant="tonal">Integral</v-chip>
-                </v-chip-group>
-                
-                <v-fade-transition>
-                    <v-alert
-                        v-if="erro"
-                        type="warning"
-                        variant="tonal"
-                        closable
-                        icon="mdi-alert-circle-outline"
-                        class="mt-4 rounded-xl border-s-4"
-                        density="comfortable"
-                        @click:close="erro = ''"
-                    >
-                        <div class="d-flex align-center flex-wrap justify-between gap-3">
-                            <div>
-                                <span class="font-bold block text-sm">Ops! Ocorreu um contratempo</span>
-                                <span class="text-xs">{{ formatarErro(erro) }}</span>
-                            </div>
-                            <v-btn
-                                size="small"
-                                color="warning"
-                                variant="elevated"
-                                class="rounded-lg font-bold text-xs"
-                                prepend-icon="mdi-refresh"
-                                @click="carregarTurmas"
-                            >
-                                Tentar novamente
-                            </v-btn>
-                        </div>
-                    </v-alert>
-                </v-fade-transition>
-
-                <div v-if="carregando" class="flex items-center gap-2 text-gray-500 text-sm mt-4 animate-pulse">
-                    <v-progress-circular indeterminate size="18" width="2" color="red"></v-progress-circular>
-                    <span>Carregando turmas...</span>
-                </div>
+                <v-text-field label="Buscar" v-model="search" variant="outlined" density="compact" hide-details
+                    class="max-w-[200px] w-full self-end md:self-center"></v-text-field>
             </div>
 
+            <!-- Filtro por Área (Dropdown para escalar com muitas áreas) -->
+            <div class="flex items-center mt-4 mb-2">
+              <v-select
+                v-model="selectedArea"
+                :items="[{ nome: 'Todas', idArea: null }, ...areasDisponiveis]"
+                item-title="nome"
+                item-value="nome"
+                label="Filtrar por Área"
+                variant="outlined"
+                density="compact"
+                hide-details
+                prepend-inner-icon="mdi-shape-outline"
+                class="max-w-[300px]"
+              ></v-select>
+            </div>
+            
+            <v-fade-transition>
+                <v-alert
+                    v-if="erro"
+                    type="warning"
+                    variant="tonal"
+                    closable
+                    icon="mdi-alert-circle-outline"
+                    class="mt-4 rounded-xl border-s-4"
+                    density="comfortable"
+                    @click:close="erro = ''"
+                >
+                    <div class="d-flex align-center flex-wrap justify-between gap-3">
+                        <div>
+                            <span class="font-bold block text-sm">Ops! Ocorreu um contratempo</span>
+                            <span class="text-xs">{{ formatarErro(erro) }}</span>
+                        </div>
+                        <v-btn
+                            size="small"
+                            color="warning"
+                            variant="elevated"
+                            class="rounded-lg font-bold text-xs"
+                            prepend-icon="mdi-refresh"
+                            @click="carregarTurmas"
+                        >
+                            Tentar novamente
+                        </v-btn>
+                    </div>
+                </v-alert>
+            </v-fade-transition>
+
+            <div v-if="carregando" class="flex items-center gap-2 text-gray-500 text-sm mt-4 animate-pulse">
+                <v-progress-circular indeterminate size="18" width="2" color="red"></v-progress-circular>
+                <span>Carregando turmas...</span>
+            </div>
+        </div>
+
+        <!-- Grade de cards ou Estado Vazio -->
+        <div v-if="filteredTurmas.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-5">
             <v-card v-for="turma in filteredTurmas" :key="turma.value" class="border-t-6 h-full flex flex-col justify-between"
                 :class="{ 'border-green-300': turma.modalidade === 'cai', 'border-blue-300': turma.modalidade === 'fic', 'border-orange-300': turma.modalidade === 'tec' }">
                 <div class="flex-grow">
-                    <v-card-title class="flex justify-between">
-                        <div class="flex items-center">
-                            <span class="text-h5">{{ turma.label }}</span>
+                    <!-- Cabeçalho do Card com fundo sutil da modalidade -->
+                    <div class="px-4 pt-2 pb-2">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+                                <span class="text-xl font-black text-gray-800 dark:text-gray-100 tracking-tight leading-none truncate">
+                                    {{ formatarLabel(turma.label).nome }}
+                                </span>
+                            </div>
+                            <div class="flex gap-0.5">
+                                <v-btn icon="mdi-pencil" variant="text"
+                                    @click="abrirEdicao(turma)"
+                                    width="35px"
+                                    height="35px"
+                                    :class="{ 'text-green-700': turma.modalidade === 'cai', 'text-blue-700': turma.modalidade === 'fic', 'text-orange-700': turma.modalidade === 'tec' }"></v-btn>
+                                <v-btn icon="mdi-delete" variant="text"
+                                    @click="abrirConfirmacaoExclusao(turma)"
+                                    width="35px"
+                                    height="35px"
+                                    :class="{ 'text-green-700': turma.modalidade === 'cai', 'text-blue-700': turma.modalidade === 'fic', 'text-orange-700': turma.modalidade === 'tec' }"></v-btn>
+                            </div>
                         </div>
-                        <div class="flex">
-                            <v-btn icon="mdi-pencil" variant="text" color="primary"
-                                @click="abrirEdicao(turma)"
-                                :class="{ 'text-green-900': turma.modalidade === 'cai', 'text-blue-900': turma.modalidade === 'fic', 'text-orange-900': turma.modalidade === 'tec' }"></v-btn>
-                            <v-btn icon="mdi-delete" variant="text" color="primary"
-                                @click="abrirConfirmacaoExclusao(turma)"
-                                :class="{ 'text-green-900': turma.modalidade === 'cai', 'text-blue-900': turma.modalidade === 'fic', 'text-orange-900': turma.modalidade === 'tec' }"></v-btn>
+                        <div v-if="turma.areas?.length" class="flex flex-wrap gap-1.5">
+                            <div v-for="area in turma.areas" :key="area"
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold"
+                                :class="{
+                                    'bg-green-50 text-green-700 border border-green-200': turma.modalidade === 'cai',
+                                    'bg-blue-50 text-blue-700 border border-blue-200': turma.modalidade === 'fic',
+                                    'bg-orange-50 text-orange-700 border border-orange-200': turma.modalidade === 'tec'
+                                }"
+                            >
+                                <v-icon icon="mdi-shape-outline" size="14"></v-icon>
+                                {{ area }}
+                            </div>
                         </div>
-                    </v-card-title>
-                    <div class="md:hidden">
-                        <v-chip-group class="ms-2 mt-1">
-                            <v-chip v-for="slot in turma.grade" :key="slot.periodo"
-                                variant="tonal" size="small" class="text-red-600!">
-                                {{ slot.periodo }} <v-icon icon="mdi-information-outline" end size="x-small"></v-icon>
-                                <v-tooltip activator="parent" location="top">
-                                    <div class="text-xs p-1">
-                                        <p class="font-bold border-b mb-1">📖 Legenda</p>
-                                        <p>{{ periodoDescricoes[slot.periodo] || 'Período de aula' }}</p>
-                                    </div>
-                                </v-tooltip>
-                            </v-chip>
-                        </v-chip-group>
+                        <p v-else class="text-xs text-gray-400 italic">Sem área vinculada</p>
                     </div>
                     <v-divider :thickness="4" class="my-1 mx-3"></v-divider>
                     <div class="hidden md:flex justify-around gap-2 p-3">
@@ -316,14 +415,29 @@ const filteredTurmas = computed(() => {
                     <p class="ms-3 text-sm my-2 font-bold ">Professores</p>
                     <div v-if="turma.professores?.length" class="flex flex-wrap gap-3 mx-3 mb-3">
                         <div v-for="(prof, idx) in turma.professores" :key="idx" class="flex items-center gap-2">
-                            <v-avatar :image="prof.foto" size="36"></v-avatar>
+                            <v-avatar size="36" class="shadow-sm border border-gray-200 dark:border-gray-700">
+                                <v-img v-if="prof.foto && prof.foto !== 'https://cdn.pixabay.com/photo/2016/08/08/09/17/avatar-1577909_1280.png'" :src="prof.foto" alt="Foto de perfil" cover></v-img>
+                                <div v-else class="w-full h-full flex items-center justify-center font-black text-white bg-gradient-to-br from-green-600 to-green-500 text-sm uppercase">
+                                    {{ prof.nome ? prof.nome.charAt(0).toUpperCase() : "?" }}
+                                </div>
+                            </v-avatar>
                             <p class="font-bold text-sm">{{ prof.nome }}</p>
                         </div>
                     </div>
                     <p v-else class="mx-3 mb-3 text-sm text-gray-500">Nenhum professor designado</p>
-                    <v-divider :thickness="4" class="my-1 mx-3"></v-divider>
                     <p class="ms-3 text-sm my-2 font-bold">Descrição <span class="text-gray-500 font-normal">(Opcional)</span></p>
-                    <v-textarea label="..." rows="4" hide-details class="mx-3 mt-2 text-sm mb-3"></v-textarea>
+                    <v-textarea
+                      v-model="turma.descricao"
+                      variant="solo"
+                      density="comfortable"
+                      rows="2"
+                      auto-grow
+                      placeholder="Digite uma descrição para esta turma..."
+                      color="primary"
+                      hide-details
+                      class="mx-3 mt-2 text-xs mb-3 rounded-lg"
+                      @update:model-value="salvarDescricao(turma)"
+                    ></v-textarea>
                     <v-divider :thickness="4" class="my-1 mx-3"></v-divider>
 
                     <!-- Grade de Horário Acoplada no Card -->
@@ -418,17 +532,32 @@ const filteredTurmas = computed(() => {
                 </div>
             </v-card>
         </div>
-    </v-container>
+
+        <!-- Estado Vazio -->
+        <div v-else-if="!carregando" class="flex flex-col items-center justify-center text-center py-20 bg-gray-50/50 dark:bg-gray-900/10 rounded-2xl border border-dashed border-gray-200 dark:border-gray-800 mt-6">
+            <v-avatar color="red-50" size="80" class="mb-4 text-red-600">
+                <v-icon size="40">mdi-school-outline</v-icon>
+            </v-avatar>
+            <h2 class="text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">
+                Nenhuma Turma Encontrada
+            </h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 max-w-[380px]">
+                Não há turmas cadastradas ou nenhuma corresponde ao filtro selecionado.
+            </p>
+        </div>
+    </div>
 
     <!-- Modal de Edição de Turma -->
     <ModalEditarTurma 
+        v-if="editModal"
         v-model="editModal" 
         :turma="turmaParaEditar" 
+        :loading="salvando"
         @save="salvarTurma"
     />
 
     <!-- Dialog de Visão Panorâmica -->
-    <v-dialog v-model="dialogGrade" max-width="1000" scrollable>
+    <v-dialog v-if="dialogGrade" v-model="dialogGrade" max-width="1000" scrollable>
         <v-card v-if="turmaSelecionada" class="rounded-xl">
             <v-card-title class="flex items-center justify-between pa-5"
                 :class="{
@@ -635,12 +764,13 @@ const filteredTurmas = computed(() => {
                 Tem certeza de que deseja excluir <b>{{ confirmDialog.item }}</b>? Esta ação não pode ser desfeita.
             </v-card-text>
             <v-card-actions class="pa-6 pt-0 flex justify-end gap-3">
-                <v-btn variant="text" color="grey-darken-1" class="font-bold px-6 uppercase tracking-wide" @click="confirmDialog.show = false">Cancelar</v-btn>
-                <v-btn variant="elevated" color="white" class="text-gray-800 font-bold px-8 shadow-sm border uppercase tracking-wide" 
+                <v-btn variant="elevated" color="grey-lighten-2" class="font-bold px-6 uppercase tracking-wide text-gray-800" @click="confirmDialog.show = false">Cancelar</v-btn>
+                <v-btn variant="elevated" color="red" class="bg-red-600 text-white font-bold px-8 shadow-sm uppercase tracking-wide" 
                     @click="confirmDialog.onConfirm(); confirmDialog.show = false">Excluir</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>
+  </div>
 </template>
 
 

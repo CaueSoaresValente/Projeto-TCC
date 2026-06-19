@@ -1,7 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useTheme } from "vuetify";
-import Menu from "@/components/Menu.vue";
 import { buscarMeuCalendario } from "@/services/api";
 
 const theme = useTheme();
@@ -35,7 +34,7 @@ const iniciarAnimacaoOcupacao = (alvo) => {
   }, intervalo);
 };
 
-onMounted(async () => {
+const carregarCalendario = async () => {
   try {
     const dados = await buscarMeuCalendario();
     todasAsAulas.value = dados.aulas || [];
@@ -45,6 +44,27 @@ onMounted(async () => {
     console.error("Erro ao carregar dados do calendário:", error);
   } finally {
     carregando.value = false;
+  }
+};
+
+let wsListener;
+
+onMounted(async () => {
+  await carregarCalendario();
+
+  wsListener = (event) => {
+    const detail = event.detail;
+    if (detail.entity === 'turmas' || detail.entity === 'professores') {
+      console.log("🔄 Recarregando calendário do professor em tempo real...");
+      carregarCalendario();
+    }
+  };
+  window.addEventListener('websocket-data-updated', wsListener);
+});
+
+onBeforeUnmount(() => {
+  if (wsListener) {
+    window.removeEventListener('websocket-data-updated', wsListener);
   }
 });
 
@@ -144,10 +164,18 @@ const anoSelecionado = computed({
 </script>
 
 <template>
-  <Menu />
-
   <div class="px-4 md:px-10 lg:px-20 xl:px-40 mt-8 pb-10">
-    <h1 class="text-3xl font-black text-gray-800 dark:text-white mb-4">Meu calendário</h1>
+    <div class="flex items-center gap-3 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
+      <div class="bg-red-50 dark:bg-red-950/30 p-2.5 rounded-xl text-red-600 dark:text-red-400 flex items-center justify-center shadow-sm">
+        <v-icon icon="mdi-calendar-month" size="28"></v-icon>
+      </div>
+      <div>
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">Meu calendário</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Consulte suas aulas agendadas, horários e compromissos.
+        </p>
+      </div>
+    </div>
     <v-card class="rounded-xl p-6 shadow-lg" variant="flat">
       <v-row>
         <!-- Lado Esquerdo: O Calendário -->

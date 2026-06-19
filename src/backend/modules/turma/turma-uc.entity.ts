@@ -17,7 +17,7 @@ export class TurmaUC {
   @Column({ name: 'dia_semana', type: 'varchar', length: 20 })
   diaSemana: string;
 
-  @Column({ type: 'varchar', length: 10 })
+  @Column({ type: 'varchar', length: 30 })
   periodo: string; // 'M01', 'M02', 'T01', 'T02', 'N01', 'N02', 'INT'
 
   @ManyToOne(() => Turma, (turma) => turma.turmaUCs, { onDelete: 'CASCADE' })

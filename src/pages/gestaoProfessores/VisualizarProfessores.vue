@@ -7,13 +7,13 @@
 // com o perfil completo (áreas, UCs, certificações, calendário, disponibilidade).
 // ============================================================
 
-import { ref, computed, onMounted } from "vue";
-import Menu from "@/components/Menu.vue";
-import Footer from "@/components/Footer.vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import {
   listarProfessoresPerfis,
   buscarPerfilProfessor,
   getUsuarioLogado,
+  listarOpps,
+  listarAreas,
 } from "@/services/api";
 
 // ====================== ESTADO DA PÁGINA ======================
@@ -50,14 +50,45 @@ async function carregarProfessores() {
     const data = await listarProfessoresPerfis();
     professores.value = data;
 
-    // Extrair áreas únicas para o filtro
-    const todasAreas = new Set<string>();
-    data.forEach((prof: any) => {
-      prof.areas?.forEach((area: any) => {
-        if (area.nome) todasAreas.add(area.nome);
-      });
-    });
-    areasDisponiveis.value = [...todasAreas].sort();
+    const usuario = getUsuarioLogado();
+    const isOpp = usuario?.funcao === 'opp';
+
+    if (isOpp) {
+      try {
+        const opps = await listarOpps();
+        const oppLogado = opps.find((o: any) => o.idCadastro === usuario?.idUsuario);
+        if (oppLogado && oppLogado.oppAreas) {
+          areasDisponiveis.value = oppLogado.oppAreas
+            .map((oa: any) => oa.area?.nome)
+            .filter(Boolean)
+            .sort();
+        } else {
+          areasDisponiveis.value = [];
+        }
+      } catch (e) {
+        console.error("Erro ao carregar áreas do OPP logado:", e);
+        areasDisponiveis.value = [];
+      }
+    } else {
+      // Gestor vê todas: Buscar todas as áreas cadastradas no sistema
+      try {
+        const areas = await listarAreas();
+        areasDisponiveis.value = areas
+          .map((a: any) => a.nome)
+          .filter(Boolean)
+          .sort();
+      } catch (e) {
+        console.error("Erro ao carregar todas as áreas do sistema:", e);
+        // Fallback: extrair das áreas dos professores
+        const todasAreas = new Set<string>();
+        data.forEach((prof: any) => {
+          prof.areas?.forEach((area: any) => {
+            if (area.nome) todasAreas.add(area.nome);
+          });
+        });
+        areasDisponiveis.value = [...todasAreas].sort();
+      }
+    }
   } catch (error: any) {
     console.error("Erro ao carregar professores:", error.message);
     erro.value = obterMensagemErro(error);
@@ -66,8 +97,27 @@ async function carregarProfessores() {
   }
 }
 
+let wsListener: any = null;
 onMounted(async () => {
   await carregarProfessores();
+
+  wsListener = (event: CustomEvent) => {
+    const detail = event.detail;
+    if (detail.entity === 'professores' || detail.entity === 'cadastros') {
+      console.log("🔄 Recarregando professores em tempo real...");
+      carregarProfessores();
+      if (showProfileDialog.value && perfilSelecionado.value?.idProfessor) {
+        abrirPerfil({ idProfessor: perfilSelecionado.value.idProfessor });
+      }
+    }
+  };
+  window.addEventListener('websocket-data-updated', wsListener as EventListener);
+});
+
+onBeforeUnmount(() => {
+  if (wsListener) {
+    window.removeEventListener('websocket-data-updated', wsListener as EventListener);
+  }
 });
 
 // ====================== FILTRAR PROFESSORES ======================
@@ -146,17 +196,54 @@ const periodosLabel: Record<string, string> = {
   noite: "Noite",
 };
 
+// Normaliza o dia da semana removendo acentos e sufixo -feira para comparações robustas
+const normalizarDia = (dia: string): string => {
+  if (!dia) return "";
+  return dia
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace("-feira", "");
+};
+
+// Normaliza o período da turma_uc (M01, T01, N01, INT, etc.)
+// para um array de períodos do calendário (manha, tarde, noite)
+const normalizarPeriodos = (periodo: string): string[] => {
+  if (!periodo) return [];
+  const p = periodo.toUpperCase();
+
+  if (p.includes('MANHÃ + TARDE') || p.includes('MANHA + TARDE') || p === 'INT_MT') {
+    return ['manha', 'tarde'];
+  }
+  if (p.includes('MANHÃ + NOITE') || p.includes('MANHA + NOITE') || p === 'INT_MN') {
+    return ['manha', 'noite'];
+  }
+  if (p.includes('TARDE + NOITE') || p === 'INT_TN') {
+    return ['tarde', 'noite'];
+  }
+  if (p === 'INT' || p === 'INTEGRAL' || p.startsWith('INT_')) {
+    return ['manha', 'tarde']; // fallback para integral legado
+  }
+
+  const arr = [];
+  if (p.startsWith('M') || p === 'MANHÃ' || p === 'MANHA') arr.push('manha');
+  if (p.startsWith('T') || p === 'TARDE') arr.push('tarde');
+  if (p.startsWith('N') || p === 'NOITE') arr.push('noite');
+
+  return arr.length > 0 ? arr : [periodo.toLowerCase()];
+};
+
 // Busca a turma que o professor tem em determinado dia/período
 const getTurmaCalendario = (dia: string, periodo: string) => {
   if (!perfilSelecionado.value?.turmas) return null;
 
   for (const turma of perfilSelecionado.value.turmas) {
     for (const horario of turma.horarios) {
-      if (
-        horario.diaSemana.toLowerCase() === dia.toLowerCase() &&
-        horario.periodo.toLowerCase() === periodo.toLowerCase()
-      ) {
-        return { nomeTurma: turma.nome, nomeUC: horario.uc };
+      if (normalizarDia(horario.diaSemana) === normalizarDia(dia)) {
+        const periodosDaAula = normalizarPeriodos(horario.periodo);
+        if (periodosDaAula.includes(periodo.toLowerCase())) {
+          return { nomeTurma: turma.nome, nomeUC: horario.uc };
+        }
       }
     }
   }
@@ -169,7 +256,7 @@ const temDisponibilidade = (dia: string, periodo: string) => {
 
   return perfilSelecionado.value.disponibilidade.some(
     (d: any) =>
-      d.diaSemana.toLowerCase() === dia.toLowerCase() &&
+      normalizarDia(d.diaSemana) === normalizarDia(dia) &&
       d.periodo.toLowerCase() === periodo.toLowerCase()
   );
 };
@@ -183,27 +270,36 @@ const formatarData = (data: string | null) => {
 // Gera iniciais do nome para o avatar
 const getIniciais = (nome: string) => {
   if (!nome) return "?";
-  const partes = nome.split(" ");
-  if (partes.length >= 2) {
-    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+  const partes = nome.trim().split(/\s+/);
+  const primeiro = partes[0];
+  const ultimo = partes[partes.length - 1];
+  if (primeiro && ultimo && partes.length >= 2) {
+    const pChar = primeiro[0];
+    const uChar = ultimo[0];
+    if (pChar && uChar) {
+      return (pChar + uChar).toUpperCase();
+    }
   }
-  return nome[0].toUpperCase();
+  const char = nome.trim()[0];
+  return char ? char.toUpperCase() : "?";
 };
 </script>
 
 <template>
-  <Menu />
-
   <section class="px-4 md:px-10 lg:px-20 xl:px-40 pb-10">
     <!-- Título da Página -->
-    <div class="text-center mt-8 mb-6">
-      <h2 class="text-h4 font-weight-bold text-grey-darken-3">
-        <v-icon icon="mdi-account-group" class="mr-2" size="36"></v-icon>
-        Perfil dos Professores
-      </h2>
-      <p class="text-body-2 text-grey mt-1">
-        Visualize as informações completas de cada professor
-      </p>
+    <div class="mt-8 mb-6">
+      <div class="flex items-center gap-3 border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div class="bg-red-50 dark:bg-red-950/30 p-2.5 rounded-xl text-red-600 dark:text-red-400 flex items-center justify-center shadow-sm">
+          <v-icon icon="mdi-account-eye" size="28"></v-icon>
+        </div>
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">Perfil dos Professores</h1>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Visualize e consulte as informações detalhadas e competências de cada docente.
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Erro ao carregar professores -->
@@ -270,7 +366,7 @@ const getIniciais = (nome: string) => {
     </div>
 
     <!-- Lista vazia -->
-    <v-card v-else-if="professoresFiltrados.length === 0" class="mx-auto max-w-md text-center pa-8" elevation="1">
+    <v-card v-else-if="professoresFiltrados.length === 0" class="mx-auto max-w-md text-center pa-8 pb-2" elevation="1">
       <v-icon icon="mdi-account-search" size="64" class="text-grey-lighten-1 mb-4"></v-icon>
       <p class="text-h6 text-grey">Nenhum professor encontrado</p>
       <p class="text-body-2 text-grey-lighten-1">Tente ajustar os filtros de busca</p>
@@ -544,9 +640,18 @@ const getIniciais = (nome: string) => {
                       <v-avatar color="red-lighten-5" class="rounded-lg dark:bg-red-900/30" size="40">
                         <v-icon icon="mdi-school" color="red-darken-2" class="dark:text-red-lighten-2" size="20"></v-icon>
                       </v-avatar>
-                      <div>
-                        <p class="font-weight-bold text-body-2 mb-0 dark:text-white">{{ turma.nome }}</p>
-                        <p class="text-caption text-grey mb-0 dark:text-grey-lighten-1">{{ turma.tipoCurso }}</p>
+                      <div class="flex flex-col items-start gap-0.5">
+                        <p class="font-extrabold text-sm tracking-tight text-gray-800 dark:text-white mb-0">{{ turma.nome }}</p>
+                        <span 
+                          class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border"
+                          :class="{
+                            'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30': turma.tipoCurso?.toLowerCase() === 'tec' || turma.tipoCurso?.toLowerCase() === 'tecnico',
+                            'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-900/30': turma.tipoCurso?.toLowerCase() === 'cai',
+                            'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30': turma.tipoCurso?.toLowerCase() === 'fic',
+                          }"
+                        >
+                          {{ turma.tipoCurso?.toLowerCase() === 'tec' ? 'Técnico' : turma.tipoCurso?.toLowerCase() === 'cai' ? 'CAI' : turma.tipoCurso?.toLowerCase() === 'fic' ? 'FIC' : turma.tipoCurso }}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -935,17 +1040,24 @@ const getIniciais = (nome: string) => {
   border: 1px solid #f3f4f6;
 }
 
+.calendar-wrapper,
+.turma-mini-card,
+.cert-item-card {
+  border: 1px solid #eef2f6 !important;
+}
+
 /* Modo Escuro - Ajustes Finos */
 :deep(.v-theme--dark) .period-name {
   background: #2a2a2a;
   box-shadow: 0 2px 10px rgba(0,0,0,0.2);
 }
 
+:deep(.v-theme--dark) .calendar-wrapper,
 :deep(.v-theme--dark) .uc-modern-card,
 :deep(.v-theme--dark) .cert-item-card,
 :deep(.v-theme--dark) .turma-mini-card {
   background: #2a2a2a;
-  border-color: #3a3a3a;
+  border-color: #3a3a3a !important;
 }
 
 :deep(.v-theme--dark) .calendar-slot.active {

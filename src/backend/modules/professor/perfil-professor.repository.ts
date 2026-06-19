@@ -10,7 +10,7 @@
 //   1. O Controller recebe a requisição HTTP
 //   2. O Controller chama o Service
 //   3. O Service chama ESTE Repository
-//   4. Este Repository usa o TypeORM para falar com o banco MySQL
+//   4. Este Repository usa o TypeORM para falar com o banco PostgreSQL
 // ============================================================
 
 import { AppDataSource } from '../../config/data-source.js';
@@ -33,14 +33,21 @@ export class PerfilProfessorRepository {
   // - Disponibilidade (para calcular ocupação)
   async findAll(): Promise<Professor[]> {
     return await this.professorRepo.find({
-      where: { status: true },
+      where: {
+        status: true,
+        cadastro: {
+          funcao: 'professor',
+          status: true
+        }
+      },
       relations: [
         'cadastro',                           // nome, email
         'professorAreas',                     // vínculos com áreas
         'professorAreas.area',                // dados da área (nome)
         'professorTurmas',                    // turmas vinculadas
         'professorTurmas.turma',              // dados da turma
-        'professorTurmas.turma.turmaUCs',     // UCs da turma (para calcular ocupação)
+        'professorTurmas.turmaUC',            // slot específico do professor
+        'professorTurmas.turmaUC.unidadeCurricular', // UC do slot
         'disponibilidades',                   // disponibilidade semanal
       ],
       order: { idProfessor: 'ASC' },
@@ -83,14 +90,22 @@ export class PerfilProfessorRepository {
 
     // Passo 3: Busca os professores com todas as relações
     return await this.professorRepo.find({
-      where: { idProfessor: In(idsProfessores), status: true },
+      where: {
+        idProfessor: In(idsProfessores),
+        status: true,
+        cadastro: {
+          funcao: 'professor',
+          status: true
+        }
+      },
       relations: [
         'cadastro',
         'professorAreas',
         'professorAreas.area',
         'professorTurmas',
         'professorTurmas.turma',
-        'professorTurmas.turma.turmaUCs',
+        'professorTurmas.turmaUC',
+        'professorTurmas.turmaUC.unidadeCurricular',
         'disponibilidades',
       ],
       order: { idProfessor: 'ASC' },
@@ -114,8 +129,8 @@ export class PerfilProfessorRepository {
         'disponibilidades',                             // disponibilidade
         'professorTurmas',                              // turmas
         'professorTurmas.turma',                        // dados da turma
-        'professorTurmas.turma.turmaUCs',               // UCs da turma (calendário)
-        'professorTurmas.turma.turmaUCs.unidadeCurricular', // nome da UC
+        'professorTurmas.turmaUC',                      // slot específico do professor
+        'professorTurmas.turmaUC.unidadeCurricular',    // UC do slot
       ],
     });
   }

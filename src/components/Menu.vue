@@ -1,5 +1,5 @@
 <template>
-  <div class="flex mb-12 shadow-md">
+  <div class="fixed top-0 left-0 right-0 z-[100] flex shadow-md bg-white dark:bg-[#121212]">
     <!-- Logo SENAI -->
     <div
       class="bg-red-600 text-white px-9 py-5 [clip-path:polygon(0%_0%,_100%_0%,_70%_100%,_0%_100%)] text-center text-5xl font-black italic tracking-tighter tracking-wide"
@@ -38,35 +38,43 @@
 
         <!-- Slot para conteúdo extra (se necessário) -->
         <div v-if="usuario" class="flex-shrink-0 flex items-center gap-6 ml-auto mt-3">
-          <!-- Info do Usuário -->
-          <div class="text-right hidden sm:block">
-            <p
-              class="text-xs font-bold text-gray-500 dark:text-gray-400 leading-tight uppercase"
-            >
-              Bem vindo,
-            </p>
-            <p class="text-base font-black text-gray-800 dark:text-gray-200">
-              {{ usuario?.nome }}
-            </p>
-          </div>
-
-          <!-- Menu Dropdown do Perfil -->
+          <!-- Menu Dropdown do Perfil Completo (Texto e Avatar Integrados) -->
           <v-menu transition="slide-y-transition">
             <template v-slot:activator="{ props }">
               <div
                 v-bind="props"
-                class="flex items-center gap-2 cursor-pointer group"
+                class="flex items-center gap-3 cursor-pointer group select-none"
               >
-                <v-avatar
-                  image="https://img.freepik.com/fotos-gratis/professor-senior-olhando-camera-contra-chalkboard-com-matematica-exemplo_23-2148200995.jpg?semt=ais_hybrid&w=740&q=80"
-                  size="42"
-                  class="border-2 border-red-500 shadow-md group-hover:scale-105 transition-transform relative -top-[1px]"
-                ></v-avatar>
-                <v-icon
-                  icon="mdi-chevron-down"
-                  size="small"
-                  class="text-gray-400 group-hover:text-red-500 transition-colors"
-                ></v-icon>
+                <!-- Info do Usuário (Clickable) -->
+                <div class="text-right hidden sm:block">
+                  <p
+                    class="text-[10px] font-black text-gray-400 dark:text-gray-500 leading-none uppercase tracking-wider"
+                  >
+                    Bem-vindo,
+                  </p>
+                  <p class="text-sm font-extrabold text-gray-800 dark:text-gray-200 capitalize mt-0.5 leading-tight group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors duration-200">
+                    {{ usuario?.nome }}
+                  </p>
+                </div>
+
+                <!-- Avatar e Chevron -->
+                <div class="flex items-center gap-1.5">
+                  <v-avatar
+                    size="40"
+                    class="shadow-sm group-hover:scale-105 transition-all duration-200 border border-gray-200 dark:border-gray-700"
+                  >
+                    <v-img v-if="usuario?.fotoPerfil" :src="usuario.fotoPerfil" alt="Foto de perfil" cover></v-img>
+                    <div v-else class="w-full h-full flex items-center justify-center font-black text-white bg-gradient-to-br text-sm uppercase"
+                         :class="funcaoColor">
+                      {{ inicialNome }}
+                    </div>
+                  </v-avatar>
+                  <v-icon
+                    icon="mdi-chevron-down"
+                    size="small"
+                    class="text-gray-400 group-hover:text-red-600 transition-all duration-300 group-hover:rotate-180"
+                  ></v-icon>
+                </div>
               </div>
             </template>
 
@@ -93,7 +101,7 @@
 
               <v-list-item
                 class="rounded-lg mb-1 hover:bg-gray-50 dark:hover:bg-gray-700"
-                :to="funcao === 'professor' ? '/perfilprofessor' : '/perfil'"
+                to="/perfil"
               >
                 <template v-slot:prepend>
                   <v-icon
@@ -136,7 +144,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { getUsuarioLogado, logout } from "@/services/api";
@@ -154,6 +162,19 @@ const router = useRouter();
 
 const usuario = ref(getUsuarioLogado());
 const funcao = computed(() => usuario.value?.funcao || "");
+
+const inicialNome = computed(() => {
+  return usuario.value?.nome ? usuario.value.nome.charAt(0).toUpperCase() : "?";
+});
+
+const funcaoColor = computed(() => {
+  const colors: Record<string, string> = {
+    gestor: "from-red-600 to-red-500",
+    opp: "from-blue-600 to-blue-500",
+    professor: "from-green-600 to-green-500",
+  };
+  return colors[funcao.value] || "from-gray-600 to-gray-500";
+});
 
 const atualizarUsuario = () => {
   usuario.value = getUsuarioLogado();
@@ -187,7 +208,7 @@ const menuGestor = [
     icon: "mdi-account-eye-outline",
   },
   {
-    label: "Gerenciar Cadastros",
+    label: "Gestão de Cadastros",
     to: "/gerenciarcadastros",
     icon: "mdi-account-cog-outline",
   },
